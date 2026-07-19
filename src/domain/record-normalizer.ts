@@ -47,6 +47,9 @@ function normalizeBirthday(value: string | null): string | null {
   if (!value) return null;
   const digits = value.replace(/\D/g, "");
   if (!/^\d{8}$/.test(digits)) return null;
+  const year = Number(digits.slice(0, 4));
+  const currentYear = new Date().getUTCFullYear();
+  if (year < 1900 || year > currentYear) return null;
   const formatted = `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
   const date = new Date(`${formatted}T00:00:00Z`);
   return Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== formatted ? null : formatted;
