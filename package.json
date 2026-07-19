@@ -10,7 +10,8 @@
     "verify": "npm run lint && npm run test && npm run build",
     "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
-    "migrate": "tsx src/db/migrate.ts"
+    "migrate": "node dist/db/migrate.js",
+    "migrate:dev": "tsx src/db/migrate.ts"
   },
   "dependencies": {
     "@fastify/cors": "latest",

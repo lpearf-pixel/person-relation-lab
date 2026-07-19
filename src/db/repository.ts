@@ -1,5 +1,7 @@
 import type { RowEnvelope } from "../ingest/workbook.js";
 import type { ImportSink } from "../ingest/pipeline.js";
+import type { DiscoveredFile } from "../ingest/discovery.js";
+import type { SourceRegistry, SourceRegistration } from "../ingest/worker.js";
 
 export type QueryResult = { rows: Array<Record<string, unknown>> };
 export type Queryable = { query(text: string, values?: unknown[]): Promise<QueryResult> };
@@ -43,6 +45,33 @@ export class PgImportSink implements ImportSink {
            state = EXCLUDED.state, updated_at = now()`,
       [sourceFileId, sheetName, lastSourceRow]
     );
+  }
+}
+
+export class PgSourceRegistry implements SourceRegistry {
+  constructor(private readonly database: Queryable) {}
+
+  async register(root: string, file: DiscoveredFile, sha256: string): Promise<SourceRegistration> {
+    const result = await this.database.query(
+      `INSERT INTO ingest.source_file (approved_root, relative_path, size_bytes, modified_at, sha256, state)
+       VALUES ($1, $2, $3, to_timestamp($4 / 1000.0), $5, 'ready')
+       ON CONFLICT (approved_root, relative_path, sha256) DO UPDATE SET size_bytes = EXCLUDED.size_bytes
+       RETURNING id, state`, [root, file.relativePath, file.size, file.mtimeMs, sha256]
+    );
+    const row = result.rows[0];
+    if (!row) throw new Error("source registration returned no row");
+    if (row.state !== "complete") await this.database.query("UPDATE ingest.source_file SET state = 'importing' WHERE id = $1", [row.id]);
+    return { id: String(row.id), state: row.state === "complete" ? "complete" : "ready" };
+  }
+
+  async markComplete(sourceFileId: string, importedRows: number): Promise<void> {
+    await this.database.query("UPDATE ingest.source_file SET state = 'complete', completed_at = now() WHERE id = $1", [sourceFileId]);
+    await this.database.query("INSERT INTO audit.event (event_type, actor, payload) VALUES ('import_complete', 'auto-import', jsonb_build_object('source_file_id', $1::text, 'imported_rows', $2::bigint))", [sourceFileId, importedRows]);
+  }
+
+  async markFailed(sourceFileId: string, reason: string): Promise<void> {
+    await this.database.query("UPDATE ingest.source_file SET state = 'quarantined' WHERE id = $1", [sourceFileId]);
+    await this.database.query("INSERT INTO audit.event (event_type, actor, payload) VALUES ('import_failed', 'auto-import', jsonb_build_object('source_file_id', $1::text, 'reason', $2::text))", [sourceFileId, reason.slice(0, 2_000)]);
   }
 }
 

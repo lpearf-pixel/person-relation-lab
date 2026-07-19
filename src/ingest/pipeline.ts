@@ -1,4 +1,6 @@
 import { rowsFromWorkbook, type RowEnvelope } from "./workbook.js";
+import { rowsFromCsv } from "./csv.js";
+import { extname } from "node:path";
 
 export type ImportSink = {
   checkpoint(sourceFileId: string, sheetName: string): Promise<number>;
@@ -7,12 +9,23 @@ export type ImportSink = {
 };
 
 export async function importXlsx(path: string, sourceFileId: string, sink: ImportSink, batchSize = 2_000): Promise<{ importedRows: number; lastSourceRow: number }> {
+  return importRows(rowsFromWorkbook(path, sourceFileId), sourceFileId, sink, batchSize);
+}
+
+export async function importFile(path: string, sourceFileId: string, sink: ImportSink, batchSize = 2_000): Promise<{ importedRows: number; lastSourceRow: number }> {
+  const extension = extname(path).toLowerCase();
+  if (extension === ".xlsx") return importXlsx(path, sourceFileId, sink, batchSize);
+  if (extension === ".csv") return importRows(rowsFromCsv(path, sourceFileId), sourceFileId, sink, batchSize);
+  throw new Error(`unsupported import format: ${extension || "none"}`);
+}
+
+async function importRows(rows: AsyncIterable<RowEnvelope>, sourceFileId: string, sink: ImportSink, batchSize: number): Promise<{ importedRows: number; lastSourceRow: number }> {
   if (batchSize <= 0) throw new Error("batchSize must be positive");
   const checkpoints = new Map<string, number>();
   const batches = new Map<string, RowEnvelope[]>();
   let importedRows = 0;
   let lastSourceRow = 0;
-  for await (const row of rowsFromWorkbook(path, sourceFileId)) {
+  for await (const row of rows) {
     let checkpoint = checkpoints.get(row.sheetName);
     if (checkpoint === undefined) {
       checkpoint = await sink.checkpoint(sourceFileId, row.sheetName);
