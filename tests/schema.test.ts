@@ -11,4 +11,11 @@ describe("PostgreSQL schema", () => {
     expect(sql).toContain("source_row_number BIGINT NOT NULL");
     expect(sql).toContain("algorithm_version TEXT NOT NULL");
   });
+
+  it("adds indexed person observations for incremental relationship projection", async () => {
+    const sql = await readFile(new URL("../migrations/002_projection.sql", import.meta.url), "utf8");
+    expect(sql).toContain("core.person_observation");
+    expect(sql).toContain("person_observation_mobile_idx");
+    expect(sql).toContain("relationship_unique_projection");
+  });
 });

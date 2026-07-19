@@ -11,7 +11,9 @@
     "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
     "migrate": "node dist/db/migrate.js",
-    "migrate:dev": "tsx src/db/migrate.ts"
+    "migrate:dev": "tsx src/db/migrate.ts",
+    "benchmark:generate": "npm run build && node dist/benchmark/xlsx.js generate",
+    "benchmark:read": "npm run build && node dist/benchmark/xlsx.js read"
   },
   "dependencies": {
     "@fastify/cors": "latest",

@@ -40,3 +40,14 @@ npm run verify
 ```
 
 当前执行环境没有Docker，因此PostgreSQL容器集成验证由GitHub Actions和最终本机部署门禁执行。真实个人数据不得提交到Git、测试或CI。
+
+## 大文件基准
+
+先用合成数据调节行数，生成接近本机真实文件大小的工作簿，再执行流式读取基准：
+
+```bash
+BENCHMARK_ROWS=2000000 npm run benchmark:generate -- data/benchmark/people.xlsx
+npm run benchmark:read -- data/benchmark/people.xlsx
+```
+
+命令会输出文件字节数、总行数、吞吐量和峰值RSS。合成文件位于已忽略的 `data/`，不会提交到GitHub。
