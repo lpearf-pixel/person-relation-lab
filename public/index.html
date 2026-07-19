@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>关系证据工作台</title><link rel="stylesheet" href="/styles.css"></head>
+<body><main><header><p class="eyebrow">PERSON RELATION LAB</p><h1>关系证据工作台</h1><p>所有推断均展示证据与置信度，推断不等于事实。</p></header>
+<section><div class="title"><h2>导入目录</h2><button id="refresh">重新扫描</button></div><div id="roots"></div><div id="files"></div></section>
+<section><h2>查询两人关系</h2><form id="query"><label>人物A<input name="personA" required></label><label>人物B<input name="personB" required></label><button>查询关系</button></form><article id="result" hidden></article></section>
+<footer>系统不会根据单一地址、单位或性别自动认定伴侣，更不会自动认定“情人”。</footer></main><script type="module" src="/app.js"></script></body></html>

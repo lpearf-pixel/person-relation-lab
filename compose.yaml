@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: person_relation
+      POSTGRES_USER: person_relation
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-change-me}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U person_relation -d person_relation"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  app:
+    build: .
+    command: ["sh", "-c", "npm run migrate && node dist/server.js"]
+    environment:
+      DATABASE_URL: postgresql://person_relation:${POSTGRES_PASSWORD:-local-change-me}@db:5432/person_relation
+      IMPORT_ROOTS: /imports
+      BIND_HOST: 0.0.0.0
+      PORT: 8787
+    volumes:
+      - ${IMPORT_DIR:-./imports}:/imports:ro
+    ports:
+      - "127.0.0.1:8787:8787"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  postgres-data:
