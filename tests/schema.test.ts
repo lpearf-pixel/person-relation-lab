@@ -18,4 +18,10 @@ describe("PostgreSQL schema", () => {
     expect(sql).toContain("person_observation_mobile_idx");
     expect(sql).toContain("relationship_unique_projection");
   });
+
+  it("indexes bounded relationship evidence lookups", async () => {
+    const sql = await readFile(new URL("../migrations/003_relation_indexes.sql", import.meta.url), "utf8");
+    expect(sql).toContain("relationship_evidence_a_algorithm_idx");
+    expect(sql).toContain("relationship_evidence_b_algorithm_idx");
+  });
 });

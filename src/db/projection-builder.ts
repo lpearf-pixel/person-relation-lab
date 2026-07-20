@@ -62,37 +62,61 @@ export class PgProjectionBuilder {
 
 const PAIRS = `WITH source_people AS (
   SELECT DISTINCT o.person_id FROM core.person_observation o JOIN raw.record r ON r.id = o.raw_record_id WHERE r.source_file_id = $1
+), source_mobile AS (
+  SELECT DISTINCT o.mobile_hash hash FROM core.person_observation o JOIN source_people s ON s.person_id=o.person_id WHERE o.mobile_hash IS NOT NULL
+), eligible_mobile AS (
+  SELECT o.mobile_hash hash FROM core.person_observation o JOIN source_mobile s ON s.hash=o.mobile_hash
+  GROUP BY o.mobile_hash HAVING COUNT(DISTINCT o.person_id) BETWEEN 2 AND 5
+), source_address AS (
+  SELECT DISTINCT o.address_hash hash FROM core.person_observation o JOIN source_people s ON s.person_id=o.person_id WHERE o.address_hash IS NOT NULL
+), eligible_address AS (
+  SELECT o.address_hash hash FROM core.person_observation o JOIN source_address s ON s.hash=o.address_hash
+  GROUP BY o.address_hash HAVING COUNT(DISTINCT o.person_id) BETWEEN 2 AND 10
+), source_company AS (
+  SELECT DISTINCT o.company_hash hash FROM core.person_observation o JOIN source_people s ON s.person_id=o.person_id WHERE o.company_hash IS NOT NULL
+), eligible_company AS (
+  SELECT o.company_hash hash FROM core.person_observation o JOIN source_company s ON s.hash=o.company_hash
+  GROUP BY o.company_hash HAVING COUNT(DISTINCT o.person_id) BETWEEN 2 AND 5
 ), matches AS (
-  SELECT LEAST(a.person_id,b.person_id) person_a_id, GREATEST(a.person_id,b.person_id) person_b_id,
-    evidence.kind,evidence.channel,evidence.weight,a.raw_record_id source_record_id
-  FROM core.person_observation a JOIN core.person_observation b ON a.person_id < b.person_id
-  CROSS JOIN LATERAL (VALUES
-    ('shared_private_mobile','contact',45,a.mobile_hash IS NOT NULL AND a.mobile_hash=b.mobile_hash),
-    ('same_address','household',35,a.address_hash IS NOT NULL AND a.address_hash=b.address_hash),
-    ('same_company','organization',15,a.company_hash IS NOT NULL AND a.company_hash=b.company_hash)
-  ) evidence(kind,channel,weight,matched)
-  WHERE (a.person_id IN (SELECT person_id FROM source_people) OR b.person_id IN (SELECT person_id FROM source_people))
-    AND evidence.matched
+  SELECT a.person_id person_a_id,b.person_id person_b_id,'shared_private_mobile' kind,'contact' channel,45 weight,a.raw_record_id source_record_id
+  FROM eligible_mobile e JOIN core.person_observation a ON a.mobile_hash=e.hash
+  JOIN core.person_observation b ON b.mobile_hash=e.hash AND a.person_id < b.person_id
+  WHERE a.person_id IN (SELECT person_id FROM source_people) OR b.person_id IN (SELECT person_id FROM source_people)
+  UNION ALL
+  SELECT a.person_id,b.person_id,'same_address','household',35,a.raw_record_id
+  FROM eligible_address e JOIN core.person_observation a ON a.address_hash=e.hash
+  JOIN core.person_observation b ON b.address_hash=e.hash AND a.person_id < b.person_id
+  WHERE a.person_id IN (SELECT person_id FROM source_people) OR b.person_id IN (SELECT person_id FROM source_people)
+  UNION ALL
+  SELECT a.person_id,b.person_id,'same_company','organization',15,a.raw_record_id
+  FROM eligible_company e JOIN core.person_observation a ON a.company_hash=e.hash
+  JOIN core.person_observation b ON b.company_hash=e.hash AND a.person_id < b.person_id
+  WHERE a.person_id IN (SELECT person_id FROM source_people) OR b.person_id IN (SELECT person_id FROM source_people)
 )`;
 
 const RELATIONSHIP_EVIDENCE_SQL = `${PAIRS}
 INSERT INTO evidence.relationship_evidence(person_a_id,person_b_id,source_record_id,kind,channel,weight,supports,explanation,algorithm_version)
 SELECT DISTINCT person_a_id,person_b_id,source_record_id,kind,channel,weight,true,
   CASE channel WHEN 'contact' THEN '归一化私人联系方式相同' WHEN 'household' THEN '非空归一化地址相同' ELSE '归一化单位相同' END,
-  'relation-v1' FROM matches m WHERE NOT EXISTS (
+  'relation-v2' FROM matches m WHERE NOT EXISTS (
     SELECT 1 FROM evidence.relationship_evidence e WHERE e.person_a_id=m.person_a_id AND e.person_b_id=m.person_b_id
-      AND e.source_record_id=m.source_record_id AND e.kind=m.kind AND e.algorithm_version='relation-v1')`;
+      AND e.source_record_id=m.source_record_id AND e.kind=m.kind AND e.algorithm_version='relation-v2')`;
 
-const RELATIONSHIP_PROJECTION_SQL = `${PAIRS}, scores AS (
-  SELECT person_a_id,person_b_id,COUNT(DISTINCT channel) channels,BOOL_OR(channel='contact') has_contact,
+const RELATIONSHIP_PROJECTION_SQL = `WITH source_people AS (
+  SELECT DISTINCT o.person_id FROM core.person_observation o JOIN raw.record r ON r.id=o.raw_record_id WHERE r.source_file_id=$1
+), scores AS (
+  SELECT e.person_a_id,e.person_b_id,COUNT(DISTINCT e.channel) channels,BOOL_OR(e.channel='contact') has_contact,
     BOOL_OR(channel='household') has_household,BOOL_OR(channel='organization') has_organization,
-    LEAST(95,SUM(DISTINCT weight)) score FROM matches GROUP BY person_a_id,person_b_id
+    LEAST(95,SUM(DISTINCT weight)) score FROM evidence.relationship_evidence e
+  WHERE e.algorithm_version='relation-v2' AND
+    (e.person_a_id IN (SELECT person_id FROM source_people) OR e.person_b_id IN (SELECT person_id FROM source_people))
+  GROUP BY e.person_a_id,e.person_b_id
 ), classified AS (
   SELECT *, CASE WHEN has_contact AND has_household AND channels>=2 THEN 'possible_partner_association'
     WHEN has_household THEN 'household_association' WHEN has_contact THEN 'contact_association'
     WHEN has_organization THEN 'organization_association' ELSE 'generic_association' END relation_type FROM scores
 )
 INSERT INTO projection.relationship(person_a_id,person_b_id,relation_type,confidence,completeness,status,algorithm_version)
-SELECT person_a_id,person_b_id,relation_type,score/100.0,LEAST(1.0,channels/3.0),'inferred','relation-v1' FROM classified
+SELECT person_a_id,person_b_id,relation_type,score/100.0,LEAST(1.0,channels/3.0),'inferred','relation-v2' FROM classified
 ON CONFLICT (person_a_id,person_b_id,relation_type,algorithm_version) DO UPDATE SET
  confidence=EXCLUDED.confidence,completeness=EXCLUDED.completeness,updated_at=now()`;

@@ -11,6 +11,9 @@ describe("person and relationship projection", () => {
     await expect(builder.projectSource("11111111-1111-1111-1111-111111111111")).resolves.toEqual({ projectedRecords: 1 });
     expect(query.mock.calls.some((call) => String(call[0]).includes("jsonb_to_recordset"))).toBe(true);
     expect(query.mock.calls.some((call) => String(call[0]).includes("relationship_evidence"))).toBe(true);
-    expect(query.mock.calls.some((call) => String(call[0]).includes("CROSS JOIN LATERAL"))).toBe(true);
+    const relationshipSql = query.mock.calls.map((call) => String(call[0])).find((sql) => sql.includes("relationship_evidence")) ?? "";
+    expect(relationshipSql).toContain("eligible_mobile");
+    expect(relationshipSql).toContain("COUNT(DISTINCT o.person_id) BETWEEN 2 AND 5");
+    expect(relationshipSql).not.toContain("CROSS JOIN LATERAL");
   });
 });
