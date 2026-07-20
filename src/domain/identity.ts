@@ -13,6 +13,11 @@ export function normalizeChineseId(value: string): ChineseIdResult {
   const normalized = value.replace(/\s/g, "").toUpperCase();
   if (!/^\d{17}[0-9X]$/.test(normalized)) return { normalized, valid: false, error: "invalid_format" };
   const birthday = `${normalized.slice(6, 10)}-${normalized.slice(10, 12)}-${normalized.slice(12, 14)}`;
+  const birthYear = Number(normalized.slice(6, 10));
+  const currentYear = new Date().getUTCFullYear();
+  if (birthYear < 1900 || birthYear > currentYear) {
+    return { normalized, valid: false, error: "invalid_birthday" };
+  }
   const parsed = new Date(`${birthday}T00:00:00Z`);
   if (Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== birthday) {
     return { normalized, valid: false, error: "invalid_birthday" };

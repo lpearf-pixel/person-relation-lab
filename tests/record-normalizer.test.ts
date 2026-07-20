@@ -27,5 +27,10 @@ describe("raw record normalization", () => {
   it("rejects year zero and implausible birthdays before PostgreSQL projection", () => {
     expect(normalizeRecord("10", { Descriot: "异常甲", Birthday: "00001111", Mobile: "13800138000" }).birthday).toBeNull();
     expect(normalizeRecord("11", { Descriot: "异常乙", Birthday: "22000101", Mobile: "13800138001" }).birthday).toBeNull();
+    expect(normalizeRecord("12", { Descriot: "异常丙", CtfId: "110105000011110022", Birthday: "00001111" })).toMatchObject({
+      birthday: null,
+      idHash: null,
+      identityKey: "record:12"
+    });
   });
 });

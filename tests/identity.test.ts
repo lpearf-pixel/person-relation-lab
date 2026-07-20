@@ -19,6 +19,13 @@ describe("identity normalization", () => {
     });
   });
 
+  it("rejects a checksum-valid ID containing year zero", () => {
+    expect(normalizeChineseId("110105000011110022")).toMatchObject({
+      valid: false,
+      error: "invalid_birthday"
+    });
+  });
+
   it("normalizes mainland mobile country prefix", () => {
     expect(normalizeMobile("+86 138-0013-8000")).toBe("13800138000");
   });
