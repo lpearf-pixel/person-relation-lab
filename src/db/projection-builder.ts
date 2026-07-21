@@ -8,7 +8,6 @@ export class PgProjectionBuilder {
 
   async projectSource(sourceFileId: string): Promise<{ projectedRecords: number }> {
     let cursor = "0";
-    let projectedRecords = 0;
     while (true) {
       const page = await this.database.query(
         `SELECT id::text, values FROM raw.record
@@ -18,10 +17,20 @@ export class PgProjectionBuilder {
       if (!page.rows.length) break;
       const candidates = page.rows.map((row) => normalizeRecord(String(row.id), row.values as Record<string, unknown>));
       await this.materializeCandidates(candidates);
-      projectedRecords += candidates.length;
       cursor = String(page.rows.at(-1)?.id);
     }
     await this.materializeRelationships(sourceFileId);
+    const verification = await this.database.query(
+      `SELECT COUNT(*)::text AS projected_records
+       FROM core.person_observation o
+       JOIN raw.record r ON r.id = o.raw_record_id
+       WHERE r.source_file_id = $1`,
+      [sourceFileId]
+    );
+    const projectedRecords = Number(verification.rows[0]?.projected_records);
+    if (!Number.isSafeInteger(projectedRecords) || projectedRecords < 0) {
+      throw new Error("projection verification returned an invalid count");
+    }
     return { projectedRecords };
   }
 
@@ -45,7 +54,7 @@ export class PgProjectionBuilder {
        ), observations AS (
          INSERT INTO core.person_observation(raw_record_id, person_id, name, birthday, gender, id_hash, mobile_hash, address_hash, company_hash)
          SELECT i.raw_record_id, p.id, i.name, i.birthday, i.gender, i.id_hash, i.mobile_hash, i.address_hash, i.company_hash
-         FROM input i JOIN core.person p USING(identity_key)
+         FROM input i JOIN inserted_people p USING(identity_key)
          ON CONFLICT (raw_record_id) DO NOTHING RETURNING raw_record_id, person_id, id_hash
        )
        INSERT INTO core.identifier(person_id, kind, value_hash, masked_value, valid, source_record_id)
