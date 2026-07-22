@@ -12,6 +12,7 @@ describe("PostgreSQL relationship service", () => {
     const result = await service.query("张三", "李四");
     expect(result).toMatchObject({ relationType: "indirect_association", confidence: 0.72,
       evidence: ["共同家庭编号", "共用私人联系方式"] });
+    expect(query.mock.calls[3]?.[0]).toContain("ev.algorithm_version = rel.algorithm_version");
   });
 
   it("does not guess when a name resolves to multiple people", async () => {

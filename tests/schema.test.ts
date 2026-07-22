@@ -24,4 +24,18 @@ describe("PostgreSQL schema", () => {
     expect(sql).toContain("relationship_evidence_a_algorithm_idx");
     expect(sql).toContain("relationship_evidence_b_algorithm_idx");
   });
+
+  it("adds resumable projection checkpoints and v3 evidence idempotency", async () => {
+    const sql = await readFile(new URL("../migrations/004_resumable_projection.sql", import.meta.url), "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS ingest.projection_checkpoint");
+    expect(sql).toContain("PRIMARY KEY (source_file_id, stage)");
+    expect(sql).toContain("last_raw_record_id BIGINT NOT NULL DEFAULT 0");
+    expect(sql).toContain("processed_rows BIGINT NOT NULL DEFAULT 0");
+    expect(sql).toContain("'pending','running','complete','failed'");
+    expect(sql).toContain("relationship_evidence_v3_unique");
+    expect(sql).toContain("WHERE algorithm_version = 'relation-v3'");
+    expect(sql).toContain("person_observation_mobile_person_idx");
+    expect(sql).toContain("person_observation_address_person_idx");
+    expect(sql).toContain("person_observation_company_person_idx");
+  });
 });

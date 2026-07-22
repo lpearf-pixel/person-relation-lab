@@ -16,8 +16,9 @@ export class PgRelationshipService {
       `SELECT DISTINCT ev.explanation, rel.relation_type, rel.completeness
        FROM projection.relationship rel
        LEFT JOIN evidence.relationship_evidence ev
-         ON ev.person_a_id IN (rel.person_a_id, rel.person_b_id)
-        AND ev.person_b_id IN (rel.person_a_id, rel.person_b_id)
+         ON ev.person_a_id = rel.person_a_id
+        AND ev.person_b_id = rel.person_b_id
+        AND ev.algorithm_version = rel.algorithm_version
        WHERE rel.id = ANY($1::uuid[]) ORDER BY ev.explanation NULLS LAST`,
       [best.edge_ids]
     );

@@ -12,6 +12,7 @@
     "start": "node dist/server.js",
     "migrate": "node dist/db/migrate.js",
     "migrate:dev": "tsx src/db/migrate.ts",
+    "repair:projections": "node dist/db/repair-projections.js",
     "benchmark:generate": "npm run build && node dist/benchmark/xlsx.js generate",
     "benchmark:read": "npm run build && node dist/benchmark/xlsx.js read"
   },

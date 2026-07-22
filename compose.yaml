@@ -25,6 +25,7 @@ services:
       FILE_SETTLE_MS: ${FILE_SETTLE_MS:-60000}
       IMPORT_BATCH_SIZE: ${IMPORT_BATCH_SIZE:-2000}
       PROJECTION_BATCH_SIZE: ${PROJECTION_BATCH_SIZE:-2000}
+      RELATION_BATCH_SIZE: ${RELATION_BATCH_SIZE:-2000}
     volumes:
       - ${IMPORT_DIR:-./imports}:/imports:ro
     ports:

@@ -23,5 +23,8 @@ describe("PostgreSQL repository", () => {
     expect(FIND_PATHS_SQL).toContain("WITH RECURSIVE");
     expect(FIND_PATHS_SQL).toContain("path.depth < 4");
     expect(FIND_PATHS_SQL).toContain("NOT next_person = ANY(path.visited)");
+    expect(FIND_PATHS_SQL).toContain("ROW_NUMBER() OVER");
+    expect(FIND_PATHS_SQL).toContain("WHEN 'relation-v3' THEN 0");
+    expect(FIND_PATHS_SQL).toContain("edge_rank = 1");
   });
 });
