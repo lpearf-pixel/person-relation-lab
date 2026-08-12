@@ -29,3 +29,18 @@ it("provides safe pause, resume and monitoring scripts with tmp logs", async () 
   expect(watch).toContain("ingest.projection_checkpoint");
   expect(watch).toContain("/tmp/person-relation-watch-latest.log");
 });
+
+it("provides an indexed direct relationship query script", async () => {
+  const script = await readFile("scripts/query-direct-relations.sh", "utf8");
+  expect(script).toContain("set -Eeuo pipefail");
+  expect(script).toContain('TARGET_NAME=${1:-SUWENLONG}');
+  expect(script).toContain("/tmp/person-relation-direct-relations-latest.csv");
+  expect(script).toContain("JOIN target_people target ON target.id = relationship.person_a_id");
+  expect(script).toContain("JOIN target_people target ON target.id = relationship.person_b_id");
+  expect(script).toContain("ROW_NUMBER() OVER");
+  expect(script).toContain("FROM relevant_people relevant");
+  expect(script).toContain("ON observation.person_id = relevant.person_id");
+  expect(script).toContain("-v target_name=\"$TARGET_NAME\"");
+  expect(script).not.toContain("ON target.id = relationship.person_a_id OR");
+  expect(script).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|TRUNCATE|DROP)\s+/i);
+});
