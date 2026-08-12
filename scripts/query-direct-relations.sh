@@ -4,6 +4,7 @@ set -Eeuo pipefail
 TARGET_NAME=${1:-SUWENLONG}
 RESULT_LIMIT=${2:-100}
 OUTPUT=${3:-/tmp/person-relation-direct-relations-latest.csv}
+GENDER_MODE=${4:-opposite}
 
 case "$RESULT_LIMIT" in
   ''|*[!0-9]*)
@@ -17,13 +18,23 @@ if [ "$RESULT_LIMIT" -le 0 ]; then
   exit 2
 fi
 
+case "$GENDER_MODE" in
+  opposite|all) ;;
+  *)
+    echo "gender mode must be opposite or all" >&2
+    exit 2
+    ;;
+esac
+
 echo "Querying direct relationships for exact name: $TARGET_NAME" >&2
+echo "Gender mode: $GENDER_MODE" >&2
 echo "CSV output: $OUTPUT" >&2
 
 docker compose exec -T db psql \
   -v ON_ERROR_STOP=1 \
   -v target_name="$TARGET_NAME" \
   -v result_limit="$RESULT_LIMIT" \
+  -v gender_mode="$GENDER_MODE" \
   -U person_relation \
   -d person_relation \
   --csv <<'SQL' | tee "$OUTPUT"
@@ -69,21 +80,36 @@ WITH target_people AS MATERIALIZED (
   SELECT
     candidate.*,
     ROW_NUMBER() OVER (
-      PARTITION BY candidate.target_id, candidate.related_id, candidate.relation_type
+      PARTITION BY candidate.target_id, candidate.related_id
       ORDER BY
         CASE candidate.algorithm_version
           WHEN 'relation-v3' THEN 0
           WHEN 'relation-v2' THEN 1
           ELSE 2
         END,
+        candidate.confidence DESC,
+        candidate.completeness DESC,
         candidate.updated_at DESC,
         candidate.id
     ) AS version_rank
   FROM direct_candidates candidate
+), gender_filtered AS (
+  SELECT ranked.*
+  FROM ranked_direct ranked
+  JOIN core.person target_person ON target_person.id = ranked.target_id
+  JOIN core.person related_person ON related_person.id = ranked.related_id
+  WHERE ranked.version_rank = 1
+    AND (
+      :'gender_mode' = 'all'
+      OR (
+        target_person.gender IN ('M', 'F')
+        AND related_person.gender IN ('M', 'F')
+        AND target_person.gender <> related_person.gender
+      )
+    )
 ), limited_direct AS MATERIALIZED (
   SELECT *
-  FROM ranked_direct
-  WHERE version_rank = 1
+  FROM gender_filtered
   ORDER BY confidence DESC, updated_at DESC
   LIMIT :result_limit
 ), relevant_people AS MATERIALIZED (
@@ -162,8 +188,14 @@ SELECT
   END AS related_mobile_masked,
   related.address AS related_address,
   related.company AS related_company,
+  CONCAT(target.gender, '-', related.gender) AS gender_pair,
   direct.relation_type,
   direct.confidence,
+  CASE
+    WHEN direct.confidence >= 0.80 THEN 'high'
+    WHEN direct.confidence >= 0.45 THEN 'medium'
+    ELSE 'low'
+  END AS review_priority,
   direct.completeness,
   direct.status,
   direct.algorithm_version,

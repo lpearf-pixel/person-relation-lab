@@ -34,10 +34,15 @@ it("provides an indexed direct relationship query script", async () => {
   const script = await readFile("scripts/query-direct-relations.sh", "utf8");
   expect(script).toContain("set -Eeuo pipefail");
   expect(script).toContain('TARGET_NAME=${1:-SUWENLONG}');
+  expect(script).toContain('GENDER_MODE=${4:-opposite}');
   expect(script).toContain("/tmp/person-relation-direct-relations-latest.csv");
   expect(script).toContain("JOIN target_people target ON target.id = relationship.person_a_id");
   expect(script).toContain("JOIN target_people target ON target.id = relationship.person_b_id");
   expect(script).toContain("ROW_NUMBER() OVER");
+  expect(script).toContain("PARTITION BY candidate.target_id, candidate.related_id");
+  expect(script).not.toContain("PARTITION BY candidate.target_id, candidate.related_id, candidate.relation_type");
+  expect(script).toContain("target_person.gender <> related_person.gender");
+  expect(script).toContain("gender_mode=\"$GENDER_MODE\"");
   expect(script).toContain("FROM relevant_people relevant");
   expect(script).toContain("ON observation.person_id = relevant.person_id");
   expect(script).toContain("-v target_name=\"$TARGET_NAME\"");

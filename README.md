@@ -61,6 +61,14 @@ git pull --ff-only origin main
 - `/tmp/person-relation-resume-latest.log`
 - `/tmp/person-relation-watch-latest.log`
 
+按姓名查询异性直接关系（默认 `SUWENLONG`，最多 100 条）：
+
+```bash
+./scripts/query-direct-relations.sh
+```
+
+前三个参数依次为精确姓名、条数和 CSV 路径；第四个参数默认 `opposite`，传 `all` 可查看不限性别的直接关系。同一对人员只保留算法版本优先且置信度最高的一条结果。
+
 可通过 `.env` 调整 `PROJECTION_BATCH_SIZE` 和 `RELATION_BATCH_SIZE`。初次恢复建议保持默认值 `2000`。绝对不要执行 `docker compose down -v`，该命令会删除数据库卷。
 
 ## 开发验证
