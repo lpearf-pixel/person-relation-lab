@@ -23,6 +23,7 @@ export class PgProjectionBuilder {
       locked = lock.rows[0]?.locked === true;
       if (!locked) throw new Error(`projection already running for source ${sourceFileId}`);
 
+      await this.preparePeopleStage(client, sourceFileId);
       await this.materializePeople(client, sourceFileId);
       await this.materializeRelationships(client, sourceFileId);
       const verification = await client.query(
@@ -59,6 +60,59 @@ export class PgProjectionBuilder {
     }
   }
 
+  private async preparePeopleStage(client: DatabaseClient, sourceFileId: string): Promise<void> {
+    const result = await client.query(
+      `WITH coverage AS MATERIALIZED (
+         SELECT
+           (SELECT COUNT(*) FROM raw.record WHERE source_file_id = $1) AS raw_records,
+           (SELECT COUNT(*)
+            FROM core.person_observation o
+            JOIN raw.record r ON r.id = o.raw_record_id
+            WHERE r.source_file_id = $1) AS projected_records,
+           COALESCE((
+             SELECT state FROM ingest.projection_checkpoint
+             WHERE source_file_id = $1 AND stage = 'people'
+           ), 'pending') AS people_state
+       ), stale AS (
+         SELECT 1 FROM coverage
+         WHERE raw_records <> projected_records AND people_state = 'complete'
+       ), stages(stage) AS (
+         VALUES ('people'), ('mobile'), ('address'), ('company')
+       ), invalidated AS (
+         INSERT INTO ingest.projection_checkpoint(
+           source_file_id, stage, last_raw_record_id, processed_rows, state, updated_at, completed_at
+         )
+         SELECT $1, stages.stage, 0, 0,
+           CASE WHEN stages.stage = 'people' THEN 'running' ELSE 'pending' END,
+           now(), NULL
+         FROM stages CROSS JOIN stale
+         WHERE true
+         ON CONFLICT (source_file_id, stage) DO UPDATE SET
+           last_raw_record_id = 0, processed_rows = 0,
+           state = EXCLUDED.state, updated_at = now(), completed_at = NULL
+         RETURNING stage
+       )
+       SELECT raw_records::text, projected_records::text, people_state,
+         (SELECT COUNT(*)::text FROM invalidated) AS invalidated_stages
+       FROM coverage`,
+      [sourceFileId]
+    );
+    const row = result.rows[0];
+    if (!row) return;
+    const invalidatedStages = Number(row.invalidated_stages);
+    if (invalidatedStages !== 0 && invalidatedStages !== 4) {
+      throw new Error(`stale projection checkpoint invalidation affected ${invalidatedStages}/4 stages`);
+    }
+    if (invalidatedStages === 4) {
+      console.info(JSON.stringify({
+        event: "projection_stale_checkpoints_invalidated",
+        sourceFileId,
+        rawRecords: Number(row.raw_records),
+        projectedRecords: Number(row.projected_records)
+      }));
+    }
+  }
+
   private async materializePeople(client: DatabaseClient, sourceFileId: string): Promise<void> {
     const checkpoint = await client.query(
       `SELECT last_raw_record_id::text
@@ -69,8 +123,12 @@ export class PgProjectionBuilder {
     let cursor = String(checkpoint.rows[0]?.last_raw_record_id ?? "0");
     while (true) {
       const page = await client.query(
-        `SELECT id::text, values FROM raw.record
-         WHERE source_file_id = $1 AND id > $2::bigint ORDER BY id LIMIT $3`,
+        `SELECT r.id::text, r.values FROM raw.record r
+         WHERE r.source_file_id = $1 AND r.id > $2::bigint
+           AND NOT EXISTS (
+             SELECT 1 FROM core.person_observation o WHERE o.raw_record_id = r.id
+           )
+         ORDER BY r.id LIMIT $3`,
         [sourceFileId, cursor, this.pageSize]
       );
       if (!page.rows.length) {

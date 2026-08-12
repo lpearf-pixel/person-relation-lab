@@ -4,14 +4,82 @@ import { PgProjectionBuilder } from "../src/db/projection-builder.js";
 const sourceId = "11111111-1111-1111-1111-111111111111";
 
 describe("person and relationship projection", () => {
+  it("invalidates stale completed checkpoints and projects only missing observations", async () => {
+    let missingPage = 0;
+    const query = vi.fn(async (text: string) => {
+      if (text.includes("pg_try_advisory_lock")) return { rows: [{ locked: true }] };
+      if (text.includes("AS people_state") && text.includes("invalidated_stages")) {
+        return { rows: [{ raw_records: "2", projected_records: "1", people_state: "complete", invalidated_stages: "4" }] };
+      }
+      if (text.includes("SELECT last_raw_record_id::text")) return { rows: [{ last_raw_record_id: "0" }] };
+      if (text.includes("SELECT r.id::text, r.values FROM raw.record r")) {
+        missingPage += 1;
+        return missingPage === 1
+          ? { rows: [{ id: "12", values: { Descriot: "李四", Birthday: "19920203" } }] }
+          : { rows: [] };
+      }
+      if (text.includes("processed_rows") && text.includes("FROM batch")) {
+        return { rows: [{ processed_rows: "0", last_raw_record_id: null }] };
+      }
+      if (text.includes("AS projected_records")) {
+        return { rows: [{ raw_records: "2", projected_records: "2", completed_stages: "4" }] };
+      }
+      if (text.includes("pg_advisory_unlock")) return { rows: [{ unlocked: true }] };
+      return { rows: [] };
+    });
+    const client = { query, release: vi.fn() };
+    const database = { query: vi.fn(), connect: vi.fn(async () => client) };
+
+    await expect(new PgProjectionBuilder(database, 100, 25).projectSource(sourceId))
+      .resolves.toEqual({ projectedRecords: 2 });
+
+    const preflight = query.mock.calls.find((call) => String(call[0]).includes("invalidated_stages"));
+    expect(preflight?.[0]).toContain("('people'), ('mobile'), ('address'), ('company')");
+    expect(preflight?.[0]).toContain("raw_records <> projected_records");
+    const rawPage = query.mock.calls.find((call) => String(call[0]).includes("SELECT r.id::text"));
+    expect(rawPage?.[0]).toContain("NOT EXISTS");
+    expect(rawPage?.[1]).toEqual([sourceId, "0", 100]);
+  });
+
+  it("continues an interrupted missing-observation repair without resetting its cursor", async () => {
+    const query = vi.fn(async (text: string, values?: unknown[]) => {
+      if (text.includes("pg_try_advisory_lock")) return { rows: [{ locked: true }] };
+      if (text.includes("AS people_state") && text.includes("invalidated_stages")) {
+        return { rows: [{ raw_records: "2", projected_records: "1", people_state: "running", invalidated_stages: "0" }] };
+      }
+      if (text.includes("SELECT last_raw_record_id::text")) {
+        return { rows: values?.[1] === undefined ? [{ last_raw_record_id: "100" }] : [] };
+      }
+      if (text.includes("SELECT r.id::text, r.values FROM raw.record r")) return { rows: [] };
+      if (text.includes("processed_rows") && text.includes("FROM batch")) {
+        return { rows: [{ processed_rows: "0", last_raw_record_id: null }] };
+      }
+      if (text.includes("AS projected_records")) {
+        return { rows: [{ raw_records: "2", projected_records: "2", completed_stages: "4" }] };
+      }
+      return { rows: [] };
+    });
+    const client = { query, release: vi.fn() };
+    const database = { query: vi.fn(), connect: vi.fn(async () => client) };
+
+    await new PgProjectionBuilder(database, 100, 25).projectSource(sourceId);
+
+    const rawPage = query.mock.calls.find((call) => String(call[0]).includes("SELECT r.id::text"));
+    expect(rawPage?.[1]).toEqual([sourceId, "100", 100]);
+    expect(query.mock.calls.filter((call) => String(call[0]).includes("invalidated_stages"))).toHaveLength(1);
+  });
+
   it("locks the source and resumes people projection after the committed cursor", async () => {
     let rawPage = 0;
     const query = vi.fn(async (text: string, values?: unknown[]) => {
       if (text.includes("pg_try_advisory_lock")) return { rows: [{ locked: true }] };
+      if (text.includes("invalidated_stages")) {
+        return { rows: [{ raw_records: "1", projected_records: "1", people_state: "running", invalidated_stages: "0" }] };
+      }
       if (text.includes("SELECT last_raw_record_id::text")) {
         return { rows: values?.[1] === undefined ? [{ last_raw_record_id: "10" }] : [] };
       }
-      if (text.includes("SELECT id::text, values FROM raw.record")) {
+      if (text.includes("SELECT r.id::text, r.values FROM raw.record r")) {
         rawPage += 1;
         return rawPage === 1
           ? { rows: [{ id: "12", values: { Descriot: "张三", Birthday: "19900102", Mobile: "13800138000" } }] }
@@ -34,7 +102,7 @@ describe("person and relationship projection", () => {
 
     expect(database.connect).toHaveBeenCalledOnce();
     expect(query.mock.calls[0]?.[0]).toContain("pg_try_advisory_lock");
-    const rawPageCall = query.mock.calls.find((call) => String(call[0]).includes("FROM raw.record"));
+    const rawPageCall = query.mock.calls.find((call) => String(call[0]).includes("SELECT r.id::text"));
     expect(rawPageCall?.[1]).toEqual([sourceId, "10", 100]);
     const candidateSql = query.mock.calls.map((call) => String(call[0])).find((sql) => sql.includes("jsonb_to_recordset")) ?? "";
     expect(candidateSql).toContain("JOIN inserted_people p USING(identity_key)");
@@ -59,8 +127,11 @@ describe("person and relationship projection", () => {
   it("runs independently checkpointed indexed batches for every evidence channel", async () => {
     const query = vi.fn(async (text: string) => {
       if (text.includes("pg_try_advisory_lock")) return { rows: [{ locked: true }] };
+      if (text.includes("invalidated_stages")) {
+        return { rows: [{ raw_records: "0", projected_records: "0", people_state: "pending", invalidated_stages: "0" }] };
+      }
       if (text.includes("SELECT last_raw_record_id::text")) return { rows: [] };
-      if (text.includes("SELECT id::text, values FROM raw.record")) return { rows: [] };
+      if (text.includes("SELECT r.id::text, r.values FROM raw.record r")) return { rows: [] };
       if (text.includes("processed_rows") && text.includes("FROM batch")) {
         return { rows: [{ processed_rows: "0", last_raw_record_id: null }] };
       }
@@ -99,8 +170,11 @@ describe("person and relationship projection", () => {
   ])("rejects incomplete projection verification: $raw_records/$projected_records/$completed_stages", async (verification) => {
     const query = vi.fn(async (text: string) => {
       if (text.includes("pg_try_advisory_lock")) return { rows: [{ locked: true }] };
+      if (text.includes("invalidated_stages")) {
+        return { rows: [{ raw_records: "200", projected_records: "200", people_state: "running", invalidated_stages: "0" }] };
+      }
       if (text.includes("SELECT last_raw_record_id::text")) return { rows: [] };
-      if (text.includes("SELECT id::text, values FROM raw.record")) return { rows: [] };
+      if (text.includes("SELECT r.id::text, r.values FROM raw.record r")) return { rows: [] };
       if (text.includes("processed_rows") && text.includes("FROM batch")) {
         return { rows: [{ processed_rows: "0", last_raw_record_id: null }] };
       }
