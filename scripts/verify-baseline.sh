@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 LOG_FILE=/tmp/person-relation-baseline-latest.log
+BASELINE_RESULT_FILE="/tmp/person-relation-baseline-result-$$.log"
 
 : > "$LOG_FILE"
 exec > >(tee "$LOG_FILE") 2>&1
@@ -9,6 +10,7 @@ exec > >(tee "$LOG_FILE") 2>&1
 finish() {
   status=$?
   trap - EXIT
+  rm -f "$BASELINE_RESULT_FILE"
   echo "finished_at=$(date '+%Y-%m-%d %H:%M:%S %z')"
   echo "exit_status=$status"
   echo "log_file=$LOG_FILE"
@@ -131,7 +133,6 @@ ORDER BY query_start;
 
 \\if :baseline_failed
   \\echo BASELINE_FAIL
-  \\quit 1
 \\else
   \\echo BASELINE_PASS
 \\endif
@@ -142,4 +143,8 @@ printf '%s\n' "$SQL" | docker compose exec -T \
   db psql \
   -v ON_ERROR_STOP=1 \
   -U person_relation \
-  -d person_relation
+  -d person_relation | tee "$BASELINE_RESULT_FILE"
+
+if grep -q '^BASELINE_FAIL$' "$BASELINE_RESULT_FILE"; then
+  exit 1
+fi

@@ -22,7 +22,10 @@ it("provides one read-only baseline verification script with a fixed log", async
   expect(script).not.toMatch(/\bCREATE\s+(?:TEMP\s+)?TABLE\b/i);
   expect(script).not.toContain("ROLLBACK");
   expect(script.match(/FROM raw\.record/g)).toHaveLength(1);
-  expect(script).toContain("\\quit 1");
+  expect(script).not.toMatch(/\\quit\s+1/);
+  expect(script).toContain("BASELINE_RESULT_FILE");
+  expect(script).toContain("grep -q '^BASELINE_FAIL$'");
+  expect(script).toContain("exit 1");
   expect(script).toContain("BASELINE_PASS");
   expect(script).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|TRUNCATE|ALTER)\s+/i);
   expect(script).not.toMatch(/\bDROP\s+(?:TABLE|SCHEMA|DATABASE|INDEX)\b/i);
