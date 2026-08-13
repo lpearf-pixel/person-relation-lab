@@ -55,6 +55,9 @@ it("builds a bounded prompt that forbids data access and command execution", () 
   expect(messages).toHaveLength(2);
   expect(messages[0]?.content).toContain("Do not request personal data");
   expect(messages[0]?.content).toContain("Do not execute commands");
+  expect(messages[0]?.content).toContain("current behavior already satisfies the task");
+  expect(messages[0]?.content).toContain("Mentally execute every proposed test");
+  expect(messages[0]?.content).toContain("Never broaden possible_partner_association");
   expect(messages[1]?.content).toContain("TASK\nAdd a unit test.");
   expect(messages[1]?.content).toContain("FILE: src/example.ts");
 });
@@ -65,4 +68,3 @@ it("only accepts a local HTTP Ollama endpoint", () => {
   expect(() => parseOllamaUrl("https://ollama.example.com")).toThrow(/local HTTP/i);
   expect(() => parseOllamaUrl("http://192.168.1.20:11434")).toThrow(/local HTTP/i);
 });
-

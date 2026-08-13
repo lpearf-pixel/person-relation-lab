@@ -108,6 +108,10 @@ export function buildMessages(task: string, contexts: ContextDocument[]): ChatMe
     "Use only the task and files supplied in this request.",
     "Do not request personal data, database contents, secrets, .env files, imports, dumps, spreadsheets, CSV files, or logs.",
     "Do not execute commands and do not claim that tests ran.",
+    "Before suggesting production changes, check whether current behavior already satisfies the task; if it does, propose tests only.",
+    "Mentally execute every proposed test against the proposed diff and reject any patch whose behavior contradicts its conclusion.",
+    "Never broaden possible_partner_association: one contact, one address, or one organization signal is insufficient.",
+    "Missing address is neutral evidence and must never become a score penalty.",
     "Return a concise engineering answer. When code changes are requested, prefer a unified diff and list verification commands separately.",
     "Never infer or assert intimate relationships from personal records."
   ].join("\n");
@@ -235,4 +239,3 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exitCode = 1;
   });
 }
-
