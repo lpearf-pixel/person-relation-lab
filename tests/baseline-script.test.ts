@@ -17,8 +17,10 @@ it("provides one read-only baseline verification script with a fixed log", async
   expect(script).toContain("pg_stat_activity");
   expect(script).toContain("expected_stage_count");
   expect(script).toContain("baseline_failed");
-  expect(script).toContain("CREATE TEMP TABLE baseline_source_status");
-  expect(script).toContain("ROLLBACK");
+  expect(script).toContain("source_status AS MATERIALIZED");
+  expect(script).toContain("jsonb_pretty");
+  expect(script).not.toMatch(/\bCREATE\s+(?:TEMP\s+)?TABLE\b/i);
+  expect(script).not.toContain("ROLLBACK");
   expect(script.match(/FROM raw\.record/g)).toHaveLength(1);
   expect(script).toContain("\\quit 1");
   expect(script).toContain("BASELINE_PASS");

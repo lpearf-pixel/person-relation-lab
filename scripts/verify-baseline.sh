@@ -22,8 +22,7 @@ echo "mode=read_only"
 
 SQL="
 \\pset pager off
-BEGIN READ ONLY;
-CREATE TEMP TABLE baseline_source_status ON COMMIT DROP AS
+\\echo '===== SOURCE COVERAGE AND SUMMARY ====='
 WITH record_counts AS MATERIALIZED (
   SELECT record.source_file_id,
     COUNT(record.id)::bigint AS raw_rows,
@@ -39,8 +38,8 @@ WITH record_counts AS MATERIALIZED (
     )::integer AS complete_stages
   FROM ingest.projection_checkpoint
   GROUP BY source_file_id
-)
-SELECT source.id,
+), source_status AS MATERIALIZED (
+  SELECT source.id,
   source.relative_path,
   source.state,
   source.discovered_at,
@@ -50,18 +49,54 @@ SELECT source.id,
   COALESCE(stages.complete_stages, 0) AS complete_stages
 FROM ingest.source_file source
 LEFT JOIN record_counts records ON records.source_file_id = source.id
-LEFT JOIN stage_counts stages ON stages.source_file_id = source.id;
+  LEFT JOIN stage_counts stages ON stages.source_file_id = source.id
+), summary AS (
+  SELECT COUNT(*)::integer AS source_count,
+    COUNT(*) FILTER (WHERE state <> 'complete')::integer AS incomplete_sources,
+    COUNT(*) FILTER (WHERE raw_rows <> projected_rows)::integer AS projection_mismatches,
+    COUNT(*) FILTER (WHERE complete_stages <> 4)::integer AS incomplete_stage_sources,
+    COALESCE(
+      BOOL_OR(
+        state <> 'complete'
+        OR raw_rows <> projected_rows
+        OR complete_stages <> 4
+      ),
+      true
+    ) AS failed
+  FROM source_status
+)
+SELECT jsonb_pretty(
+    jsonb_build_object(
+      'sources', COALESCE(
+        (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'relative_path', relative_path,
+              'state', state,
+              'raw_rows', raw_rows,
+              'projected_rows', projected_rows,
+              'complete_stages', complete_stages,
+              'expected_stage_count', 4,
+              'completed_at', completed_at
+            ) ORDER BY discovered_at, id
+          )
+          FROM source_status
+        ),
+        '[]'::jsonb
+      ),
+      'summary', jsonb_build_object(
+        'source_count', summary.source_count,
+        'incomplete_sources', summary.incomplete_sources,
+        'projection_mismatches', summary.projection_mismatches,
+        'incomplete_stage_sources', summary.incomplete_stage_sources
+      )
+    )
+  ) AS report,
+  summary.failed
+FROM summary
+\\gset baseline_
 
-\\echo '===== SOURCE COVERAGE ====='
-SELECT relative_path,
-  state,
-  raw_rows,
-  projected_rows,
-  complete_stages,
-  4 AS expected_stage_count,
-  completed_at
-FROM baseline_source_status
-ORDER BY discovered_at, id;
+\\echo :baseline_report
 
 \\echo '===== PROJECTION CHECKPOINTS ====='
 SELECT source.relative_path,
@@ -94,32 +129,10 @@ WHERE datname = current_database()
   AND pid <> pg_backend_pid()
 ORDER BY query_start;
 
-\\echo '===== BASELINE SUMMARY ====='
-SELECT COUNT(*)::integer AS source_count,
-  COUNT(*) FILTER (WHERE state <> 'complete')::integer AS incomplete_sources,
-  COUNT(*) FILTER (WHERE raw_rows <> projected_rows)::integer AS projection_mismatches,
-  COUNT(*) FILTER (WHERE complete_stages <> 4)::integer AS incomplete_stage_sources,
-  COALESCE(
-    BOOL_OR(
-      state <> 'complete'
-      OR raw_rows <> projected_rows
-      OR complete_stages <> 4
-    ),
-    true
-  ) AS failed
-FROM baseline_source_status
-\\gset baseline_
-
-\\echo source_count=:baseline_source_count
-\\echo incomplete_sources=:baseline_incomplete_sources
-\\echo projection_mismatches=:baseline_projection_mismatches
-\\echo incomplete_stage_sources=:baseline_incomplete_stage_sources
 \\if :baseline_failed
-  ROLLBACK;
   \\echo BASELINE_FAIL
   \\quit 1
 \\else
-  ROLLBACK;
   \\echo BASELINE_PASS
 \\endif
 "
