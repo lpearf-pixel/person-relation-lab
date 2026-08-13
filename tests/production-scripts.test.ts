@@ -49,3 +49,17 @@ it("provides an indexed direct relationship query script", async () => {
   expect(script).not.toContain("ON target.id = relationship.person_a_id OR");
   expect(script).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|TRUNCATE|DROP)\s+/i);
 });
+
+it("provides local coder wrappers that log output without executing it", async () => {
+  const paths = ["scripts/local-coder-check.sh", "scripts/local-coder-task.sh"];
+  const [check, task] = await Promise.all(paths.map((file) => readFile(file, "utf8")));
+  for (const script of [check, task]) {
+    expect(script).toContain("set -Eeuo pipefail");
+    expect(script).toContain("npm run build");
+    expect(script).toContain("npm run local-coder");
+    expect(script).not.toMatch(/\beval\b|git apply|source\s+\.env|docker compose exec\s+db/i);
+  }
+  expect(check).toContain("/tmp/person-relation-local-coder-check-latest.log");
+  expect(task).toContain("/tmp/person-relation-local-coder-task-latest.log");
+  expect(task).toContain("/tmp/person-relation-local-coder-latest.md");
+});

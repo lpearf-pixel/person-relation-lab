@@ -80,6 +80,17 @@ npm run verify
 
 真实个人数据不得提交到Git、测试或CI。
 
+## 可选本地代码模型
+
+本机 Ollama 中的 `qwen2.5-coder:7b-instruct` 可用于小型代码审查、测试草案和补丁建议。它不会读取数据库或导入文件，也不会自动修改或执行工程代码：
+
+```bash
+./scripts/local-coder-check.sh
+./scripts/local-coder-task.sh docs/local-coder-tasks/example.md src/domain/relations.ts tests/relations.test.ts
+```
+
+完整输入限制和使用方法见 [docs/local-coder.md](docs/local-coder.md)。产品后续开发顺序见 [产品路线图](docs/superpowers/specs/2026-08-13-roadmap-local-coder-design.md) 和 [实施计划](docs/superpowers/plans/2026-08-13-product-roadmap.md)。
+
 ## 大文件基准
 
 先用合成数据调节行数，生成接近本机真实文件大小的工作簿，再执行流式读取基准：
