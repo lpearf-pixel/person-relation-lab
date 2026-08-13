@@ -51,14 +51,24 @@ it("provides an indexed direct relationship query script", async () => {
 });
 
 it("provides local coder wrappers that log output without executing it", async () => {
-  const paths = ["scripts/local-coder-check.sh", "scripts/local-coder-task.sh"];
-  const [check, task] = await Promise.all(paths.map((file) => readFile(file, "utf8")));
+  const paths = [
+    "scripts/local-coder-check.sh",
+    "scripts/local-coder-task.sh",
+    "scripts/ensure-dev-dependencies.sh"
+  ];
+  const [check, task, dependencies] = await Promise.all(paths.map((file) => readFile(file, "utf8")));
   for (const script of [check, task]) {
     expect(script).toContain("set -Eeuo pipefail");
+    expect(script).toContain("./scripts/ensure-dev-dependencies.sh");
     expect(script).toContain("npm run build");
     expect(script).toContain("npm run local-coder");
     expect(script).not.toMatch(/\beval\b|git apply|source\s+\.env|docker compose exec\s+db/i);
   }
+  expect(dependencies).toContain("set -Eeuo pipefail");
+  expect(dependencies).toContain("node_modules/@types/node/package.json");
+  expect(dependencies).toContain("node_modules/vitest/package.json");
+  expect(dependencies).toContain("npm ci --include=dev");
+  expect(dependencies).not.toContain("npm install");
   expect(check).toContain("/tmp/person-relation-local-coder-check-latest.log");
   expect(task).toContain("/tmp/person-relation-local-coder-task-latest.log");
   expect(task).toContain("/tmp/person-relation-local-coder-latest.md");

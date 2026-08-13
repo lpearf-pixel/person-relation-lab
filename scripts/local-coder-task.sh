@@ -15,6 +15,7 @@ fi
   echo "started_at=$(date '+%Y-%m-%d %H:%M:%S %z')"
   echo "model=${LOCAL_CODER_MODEL:-qwen2.5-coder:7b-instruct}"
   echo "output=$OUTPUT_FILE"
+  ./scripts/ensure-dev-dependencies.sh
   npm run build
   LOCAL_CODER_OUTPUT="$OUTPUT_FILE" npm run local-coder -- run "$@"
   echo "completed_at=$(date '+%Y-%m-%d %H:%M:%S %z')"
@@ -23,4 +24,3 @@ fi
 echo "Model output: $OUTPUT_FILE"
 echo "Log file: $LOG_FILE"
 echo "The output was not applied or executed. Review it, then run npm run verify after any code change."
-

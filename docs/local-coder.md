@@ -12,6 +12,8 @@ ollama pull qwen2.5-coder:7b-instruct
 
 自检日志固定保存在 `/tmp/person-relation-local-coder-check-latest.log`。默认连接 `http://127.0.0.1:11434`，可用 `OLLAMA_URL` 覆盖，但工具只接受 `localhost`、`127.0.0.1` 或 `::1` 的 HTTP 地址。
 
+自检和任务脚本会检查 TypeScript 测试/构建依赖；若本地 `node_modules` 不完整，会自动按照 `package-lock.json` 执行一次 `npm ci --include=dev`。后续依赖完整时不会重复安装。
+
 ## 执行小型代码任务
 
 先把需求写入仓库内的 Markdown 或文本文件，例如 `/tmp` 文件不在仓库内，因此不能作为输入。推荐创建一个不会包含真实数据的临时任务文档：
@@ -43,4 +45,3 @@ LOCAL_CODER_MODEL=qwen2.5-coder:7b-instruct LOCAL_CODER_TIMEOUT_SECONDS=300 ./sc
 ```bash
 npm run verify
 ```
-
