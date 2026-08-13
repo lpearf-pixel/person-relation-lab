@@ -12,10 +12,11 @@ it("provides safe pause, resume and monitoring scripts with tmp logs", async () 
   const paths = [
     "scripts/pause-processing.sh",
     "scripts/resume-processing.sh",
-    "scripts/watch-processing.sh"
+    "scripts/watch-processing.sh",
+    "scripts/verify-baseline.sh"
   ];
-  const [pause, resume, watch] = await Promise.all(paths.map((path) => readFile(path, "utf8")));
-  for (const script of [pause, resume, watch]) {
+  const [pause, resume, watch, baseline] = await Promise.all(paths.map((path) => readFile(path, "utf8")));
+  for (const script of [pause, resume, watch, baseline]) {
     expect(script).toContain("set -Eeuo pipefail");
     expect(script).toContain("/tmp/person-relation-");
     expect(script).toContain("docker compose");
@@ -28,6 +29,7 @@ it("provides safe pause, resume and monitoring scripts with tmp logs", async () 
   expect(resume).toContain("/tmp/person-relation-resume-latest.log");
   expect(watch).toContain("ingest.projection_checkpoint");
   expect(watch).toContain("/tmp/person-relation-watch-latest.log");
+  expect(baseline).toContain("/tmp/person-relation-baseline-latest.log");
 });
 
 it("provides an indexed direct relationship query script", async () => {

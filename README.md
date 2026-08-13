@@ -53,6 +53,14 @@ git pull --ff-only origin main
 ./scripts/watch-processing.sh 30
 ```
 
+恢复完成后执行一次只读基线核验：
+
+```bash
+./scripts/verify-baseline.sh
+```
+
+全部来源为 `complete`、人物投影数量与原始记录相等且四个投影阶段均完成时输出 `BASELINE_PASS`；否则输出 `BASELINE_FAIL` 并以非零状态退出。完整日志固定写入 `/tmp/person-relation-baseline-latest.log`。
+
 每个来源分别记录 `people`、`mobile`、`address`、`company` 四个阶段。每批默认处理 2,000 条并立即提交；按 `Ctrl+C` 或重启 Docker 后，最多只会重做当前尚未提交的一批。
 
 最新日志固定写入：
