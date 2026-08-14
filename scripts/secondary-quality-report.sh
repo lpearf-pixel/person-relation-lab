@@ -86,24 +86,32 @@ FROM coverage CROSS JOIN totals
 ORDER BY coverage.channel;
 
 \\echo '===== VALUE PROFILE DISTRIBUTION ====='
-SELECT channel,
-  CASE
-    WHEN person_count = 1 THEN '1'
-    WHEN person_count <= 5 THEN '2-5'
-    WHEN person_count <= 20 THEN '6-20'
-    WHEN person_count <= 100 THEN '21-100'
-    ELSE '101+'
-  END AS person_count_band,
+WITH profiled_values AS (
+  SELECT channel, observation_count, person_count,
+    CASE
+      WHEN person_count = 1 THEN '1'
+      WHEN person_count <= 5 THEN '2-5'
+      WHEN person_count <= 20 THEN '6-20'
+      WHEN person_count <= 100 THEN '21-100'
+      ELSE '101+'
+    END AS person_count_band,
+    CASE
+      WHEN person_count = 1 THEN 1
+      WHEN person_count <= 5 THEN 2
+      WHEN person_count <= 20 THEN 3
+      WHEN person_count <= 100 THEN 4
+      ELSE 5
+    END AS person_count_band_order
+  FROM analytics.value_profile
+  WHERE normalizer_version = '$NORMALIZER_VERSION'
+)
+SELECT channel, person_count_band,
   COUNT(*)::bigint AS value_count,
   SUM(observation_count)::bigint AS observation_count,
   SUM(person_count)::bigint AS person_count
-FROM analytics.value_profile
-WHERE normalizer_version = '$NORMALIZER_VERSION'
-GROUP BY channel, person_count_band
-ORDER BY channel,
-  CASE person_count_band
-    WHEN '1' THEN 1 WHEN '2-5' THEN 2 WHEN '6-20' THEN 3 WHEN '21-100' THEN 4 ELSE 5
-  END;
+FROM profiled_values
+GROUP BY channel, person_count_band, person_count_band_order
+ORDER BY channel, person_count_band_order;
 
 \\echo '===== VALUE PROFILE CLASSIFICATIONS ====='
 SELECT channel, classification, COUNT(*)::bigint AS value_count
