@@ -68,11 +68,11 @@ CREATE TABLE IF NOT EXISTS ingest.processing_checkpoint (
   last_error_code TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  completed_at TIMESTAMPTZ
+  completed_at TIMESTAMPTZ,
+  CONSTRAINT processing_checkpoint_scope_uq UNIQUE NULLS NOT DISTINCT
+    (pipeline_name, pipeline_version, source_file_id, stage)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS processing_checkpoint_scope_uq
-  ON ingest.processing_checkpoint(pipeline_name, pipeline_version, source_file_id, stage) NULLS NOT DISTINCT;
 CREATE INDEX IF NOT EXISTS processing_checkpoint_state_updated_idx
   ON ingest.processing_checkpoint(state, updated_at);
 
