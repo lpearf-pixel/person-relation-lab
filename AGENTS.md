@@ -1,5 +1,11 @@
 # Person Relation Lab Working Rules
 
+## 文档与沟通语言
+
+- 与用户沟通默认使用中文。
+- 设计规格、实施计划、进度报告和运维说明默认使用中文。
+- 代码标识符、数据库对象、命令、日志事件名和行业标准术语可保留英文。
+
 ## Runtime and package manager
 
 - Use Node.js 24 and `npm`; keep `package-lock.json` authoritative.
@@ -33,4 +39,3 @@
 - Do not reset, clean, force-push, merge, or modify `main` directly.
 - Push only when the user has authorized it; use the existing feature branch and Pull Request when present.
 - Completion reports must include changed files, fresh verification evidence, remaining risks, and the exact next command.
-

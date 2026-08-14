@@ -1,30 +1,30 @@
-# Person Relation Lab Secondary Processing Design
+# Person Relation Lab 二次加工设计规格
 
-## Status
+## 状态
 
-Approved direction on 2026-08-14. This specification turns the verified 20,051,414-row import baseline into a versioned, resumable secondary-processing system. It does not alter raw records, delete existing people, or present inferred intimate relationships as facts.
+本方向于 2026-08-14 获得批准。本规格将在已经核验通过的 20,051,414 条导入基线上，建设版本化、可恢复的二次加工系统。系统不修改原始记录、不删除现有人物，也不把推断出的亲密关系表述为事实。
 
-## Objectives
+## 目标
 
-1. Produce typed, versioned normalized observations from the immutable raw layer.
-2. Measure the population frequency and quality of phones, addresses, and organizations before using them as relationship evidence.
-3. Separate authoritative identity resolution from probabilistic merge candidates.
-4. Materialize bounded pair features so relationship scoring never requires a source-wide observation self-join.
-5. Keep PostgreSQL authoritative while allowing rebuildable Parquet/DuckDB analysis and an optional graph projection.
-6. Preserve provenance, privacy, auditability, and stop/resume behavior at every stage.
+1. 从不可变原始层生成类型明确、带版本的标准化观察记录。
+2. 在关系证据计算之前，统计手机号、地址和单位的全库频率与质量。
+3. 把权威身份归并与概率型人物归并候选明确分开。
+4. 物化有边界的两人特征，避免关系评分再次执行全来源人物观察自连接。
+5. PostgreSQL 保持权威数据源，同时支持可重建的 Parquet/DuckDB 分析和可选图投影。
+6. 每个阶段都保留来源追踪、隐私保护、审计和停止后续传能力。
 
-## Non-goals
+## 非目标
 
-- Do not rewrite or remove `raw.record`.
-- Do not destructively split or merge existing `core.person` rows in the first phase.
-- Do not load all raw records into a graph database.
-- Do not use a local language model to process personal records or decide relationships.
-- Do not claim that `possible_partner_association` proves a romantic or intimate relationship.
-- Do not introduce machine-learned relationship scoring before a reviewed labeled evaluation set exists.
+- 不重写或删除 `raw.record`。
+- 第一阶段不破坏性拆分或合并现有 `core.person`。
+- 不把所有原始记录导入图数据库。
+- 不让本地语言模型处理真实个人数据或决定人物关系。
+- 不宣称 `possible_partner_association` 能证明情侣、伴侣或情人关系。
+- 在获得经过人工审核的标注评估集之前，不引入机器学习关系评分。
 
-## Architecture
+## 总体架构
 
-PostgreSQL remains the source of truth. Secondary processing adds immutable/versioned analytical layers rather than changing the meaning of existing `relation-v3` rows in place.
+PostgreSQL 继续作为权威数据源。二次加工新增不可变或版本化的分析层，不在原位置修改现有 `relation-v3` 的语义。
 
 ```text
 raw.record
@@ -32,24 +32,24 @@ raw.record
     -> analytics.value_profile
     -> identity.merge_candidate / identity.conflict
     -> analytics.relationship_pair_feature
-    -> projection.relationship (new algorithm version)
+    -> projection.relationship（新算法版本）
     -> review.decision / audit.event
 
-analytics snapshots
+analytics 分析快照
     -> Parquet
-    -> DuckDB reports and threshold experiments
+    -> DuckDB 报告和阈值试验
 
-accepted relationship projection
-    -> optional graph database
+通过验收的关系投影
+    -> 可选图数据库
 ```
 
-The current `relation-v3` projection remains available as a historical baseline. The first secondary versions are named `normalizer-v1`, `pair-feature-v1`, and `relation-v4`. New scoring must be compared side by side before activation and must never update a `relation-v3` row.
+当前 `relation-v3` 保留为历史基线。第一批二次加工版本固定为 `normalizer-v1`、`pair-feature-v1` 和 `relation-v4`。新评分必须与旧版本并行对比，且绝不能更新 `relation-v3` 记录。
 
-## Data model
+## 数据模型
 
-### Versioned normalized observations
+### 版本化标准观察记录
 
-Create schema `analytics` and table `analytics.normalized_observation`:
+创建 `analytics` schema 和 `analytics.normalized_observation` 表：
 
 - `raw_record_id bigint`
 - `person_id uuid`
@@ -65,156 +65,165 @@ Create schema `analytics` and table `analytics.normalized_observation`:
 - `quality_flags text[]`
 - `processed_at timestamptz`
 
-The primary key is `(raw_record_id, normalizer_version)`. Normalized cleartext is not duplicated into this table. Operator-facing detail continues to be retrieved from the authorized raw record and masked at the output boundary.
+主键为 `(raw_record_id, normalizer_version)`。该表不重复保存标准化明文。操作人员需要查看详情时，仍从经过授权的原始记录读取，并在输出边界进行脱敏。
 
-Normalizers return a value, a version, a granularity/classification, and flags. Missing values remain null and carry a neutral missing flag; they never become empty-string hashes.
+标准化函数返回标准值、版本、粒度或分类以及质量标记。缺失值保持为 null，并记录中性的缺失标记；绝不能为缺失值生成空字符串哈希。
 
-### Population value profiles
+### 全库属性频率画像
 
-Create `analytics.value_profile` keyed by `(channel, normalized_hash, normalizer_version)` with:
+创建 `analytics.value_profile`，以 `(channel, normalized_hash, normalizer_version)` 为键，保存：
 
-- observation count
-- distinct person count
-- distinct source count
-- first and last source/version timestamps when available
-- classification: `private`, `shared_household`, `organization`, `public`, or `noisy`
-- quality flags
+- 观察记录数量；
+- 去重人物数量；
+- 去重来源数量；
+- 可获得时的首次和末次来源时间；
+- 分类：`private`、`shared_household`、`organization`、`public` 或 `noisy`；
+- 质量标记。
 
-Frequency classification is deterministic and configurable. Phase 1 measures distributions without declaring permanent thresholds. Before Phase 3, the accepted channel thresholds and hard expansion caps are stored with the algorithm configuration and covered by tests. A value above its hard cap is excluded or down-weighted, not expanded into an unbounded person-pair join; no unrecorded runtime default may change this behavior.
+频率分类必须确定、可配置。第一阶段只测量分布，不永久写死阈值。进入第三阶段前，经过接受的各渠道阈值和配对展开硬上限必须随算法配置一起保存，并有自动化测试。超过硬上限的值只能被排除或降权，不能展开成无边界的人物对；未记录的运行时默认值不得改变这个行为。
 
-### Identity resolution
+### 人物身份解析
 
-Create schema `identity` with append-only decision support tables:
+创建 `identity` schema，包含以下只追加的决策支持表：
 
 - `identity.merge_candidate`
 - `identity.conflict`
 - `identity.entity_membership`
 - `identity.decision`
 
-Identity rules are:
+身份规则如下：
 
-1. A valid normalized government identifier is authoritative for automatic grouping.
-2. Different valid identifiers are a hard conflict and prohibit automatic merge.
-3. Name, birthday, private mobile, and email combinations create scored merge candidates only.
-4. Name-only, address-only, phone-only, or organization-only matches never merge people.
-5. Existing legacy `composite:` people are not silently rewritten. They receive a legacy provenance flag and are evaluated through the same candidate/conflict process.
-6. Every accepted merge is reversible through versioned membership rows; observations are never reassigned destructively.
+1. 经过校验的标准政府证件是自动归组的权威依据。
+2. 两个不同的有效证件构成硬冲突，禁止自动合并。
+3. 姓名、生日、私人手机号和邮箱组合只能生成带评分的归并候选。
+4. 仅姓名、仅地址、仅手机号或仅单位相同，均不得合并人物。
+5. 现有历史 `composite:` 人物不允许静默重写；先增加历史来源标记，再进入相同的候选与冲突流程。
+6. 每个已接受的归并通过版本化成员关系表达，必须可撤销；不得破坏性转移观察记录。
 
-Future identifiers are keyed by normalized certificate type, nation/issuer, and certificate value. New protected identifier tokens use keyed HMAC rather than unsalted hashes. The secret is runtime-only and is never committed, logged, or sent to Ollama. Migration from the existing hash is a separately approved, resumable job because it changes identity tokens.
+未来的身份标识由标准化证件类型、国家或签发方、证件号码共同构成。新的受保护身份令牌使用带密钥 HMAC，不继续使用无盐哈希。密钥只存在于运行环境中，不能提交、记录到日志或发送给 Ollama。由于 HMAC 迁移会改变身份令牌，必须作为单独批准、支持断点续传的任务实施。
 
-### Pair features
+### 两人关系特征
 
-Create `analytics.relationship_pair_feature` keyed by canonical person pair and `feature_version`. It stores bounded aggregate features rather than raw values:
+创建 `analytics.relationship_pair_feature`，以规范化人物对和 `feature_version` 为键。只保存有界聚合特征，不保存原始值：
 
-- shared rare private contact count
-- shared exact-address and address-region counts
-- shared organization and department counts
-- independent evidence channel count
-- distinct source count
-- first/last co-observation bounds when meaningful
-- population frequencies for the supporting values
-- gender pair and age difference as explanatory attributes, never primary proof
-- identity and data-quality conflict flags
-- positive, negative, and limitation codes
+- 共享稀有私人联系方式数量；
+- 共享精确地址和区域地址数量；
+- 共享单位和部门数量；
+- 独立证据渠道数量；
+- 去重来源数量；
+- 有意义时的首次和末次共同出现边界；
+- 支撑属性在全库中的频率；
+- 性别组合和年龄差，仅作为解释属性，不能作为主要证据；
+- 身份冲突和数据质量冲突标记；
+- 正向原因、负向原因和限制代码。
 
-Candidate generation starts from eligible normalized values. It refuses to expand values whose distinct-person frequency exceeds the configured bound. Repeated copies of one source observation do not add independent-channel weight.
+候选对从符合条件的标准属性开始生成。任何去重人物频率超过配置上限的属性都禁止展开。相同来源观察的重复副本不能重复增加独立渠道权重。
 
-## Relationship scoring
+## 关系评分
 
-The first secondary relationship version remains rules-first and explainable.
+第一版二次关系算法继续采用规则优先、可解释的方式。
 
-- Rare private contact plus detailed residential address may produce a high-priority household or possible-partner review candidate.
-- Organization evidence can corroborate another private channel but cannot independently create a partner candidate.
-- Missing address is neutral.
-- Public or high-frequency phones, addresses, and organizations contribute no positive partner evidence.
-- Opposite recorded gender may be a query filter, but it is not evidence that a relationship exists.
-- Age difference is descriptive and may produce a limitation flag; it does not establish or disprove intimacy.
-- A result includes confidence, completeness, feature version, algorithm version, evidence summary, limitation codes, and review status.
+- 稀有私人联系方式加详细住宅地址，可以产生高优先级家庭关系或可能伴侣审核候选。
+- 单位证据可以加强另一个私人渠道，但不能单独产生伴侣候选。
+- 地址缺失保持中性。
+- 公共或高频手机号、地址、单位，不提供任何正向伴侣证据。
+- 异性可以作为查询筛选条件，但不能作为关系存在的证据。
+- 年龄差只用于解释和限制标记，不能建立或否定亲密关系。
+- 每个结果必须包含置信度、完整度、特征版本、算法版本、证据摘要、限制代码和审核状态。
 
-No inferred candidate becomes `confirmed` without an explicit `review.decision`.
+任何推断候选在没有明确 `review.decision` 之前，都不能变成 `confirmed`。
 
-## Processing and recovery
+## 加工与断点恢复
 
-Migration `005_secondary_processing_foundation.sql` adds a generic versioned processing checkpoint rather than extending the fixed `people/mobile/address/company` checkpoint contract. A checkpoint is keyed by pipeline name, pipeline version, source file, and stage. It records the last committed raw record ID, processed count, state, timestamps, and last safe error.
+迁移 `005_secondary_processing_foundation.sql` 新增通用的版本化加工检查点，不扩展当前固定的 `people/mobile/address/company` 检查点合同。
 
-Each worker:
+检查点由以下字段共同确定：
 
-1. takes a pipeline/source advisory lock;
-2. reads a bounded keyset page ordered by `raw_record_id`;
-3. writes derived rows and advances the checkpoint in one transaction;
-4. commits before reading the next page;
-5. can be stopped between committed batches and resumed without replay side effects.
+- 流水线名称；
+- 流水线版本；
+- 来源文件；
+- 加工阶段。
 
-Frequency aggregation and pair materialization run after normalized-observation coverage is verified. They use bounded hash buckets or key ranges and their own checkpoints. No phase executes a single transaction over an entire source.
+同时保存最后提交的原始记录 ID、已处理数量、状态、时间戳和最后一个安全错误。
 
-## Storage strategy
+每个工作任务执行以下流程：
 
-Existing raw and projection tables are not repartitioned during the first secondary-processing release. New high-volume tables may use hash partitioning only after a representative `EXPLAIN (ANALYZE, BUFFERS)` benchmark demonstrates a benefit for actual query patterns.
+1. 获取流水线和来源级 advisory lock；
+2. 按 `raw_record_id` 顺序读取有界 keyset 分页；
+3. 在同一事务内写入派生数据并推进检查点；
+4. 提交当前批次后才能读取下一批；
+5. 可以在任意已提交批次之间停止，并从断点继续，不产生重复副作用。
 
-PostgreSQL stores authoritative data and decisions. Parquet snapshots contain only explicitly selected, masked or hashed analytical columns and include the producing version and timestamp. DuckDB consumes those snapshots for population reports and offline threshold experiments. Neither Parquet nor DuckDB becomes an authoritative write path.
+标准观察覆盖率验证通过后，才能执行频率聚合和人物对物化。这些任务按有界哈希桶或键范围运行，并使用独立检查点。任何阶段都不允许对整个来源执行单一大事务。
 
-An optional graph projection contains only accepted derived nodes and edges:
+## 存储策略
 
-- nodes: person, phone token, address token, organization token;
-- edges: uses contact, observed at address, works at organization, and versioned relationship candidate;
-- no raw record payloads or clear identifiers.
+第一批二次加工发布不重新分区现有原始表和关系投影表。只有在代表性 `EXPLAIN (ANALYZE, BUFFERS)` 基准证明实际查询能够获益后，新的大表才考虑哈希分区。
 
-The graph is rebuildable from PostgreSQL and is introduced only after bounded two/three-hop PostgreSQL benchmarks establish a real need.
+PostgreSQL 保存权威数据和决策。Parquet 快照只能包含明确选择的脱敏或哈希分析字段，并记录生成版本和时间。DuckDB 使用这些快照执行全库报告和离线阈值试验；Parquet 和 DuckDB 都不能成为权威写入路径。
 
-## Privacy and access
+可选图投影只包含经过接受的派生节点和边：
 
-- Raw identifiers and contact values remain local and are not committed or included in test fixtures.
-- API, CSV, and report outputs mask identity and contact fields by default.
-- HMAC and encryption secrets are centrally configured as runtime secrets.
-- Operational logs contain IDs, counts, stages, durations, and error codes, not record payloads.
-- Synthetic fixtures are used for all automated tests and local-coder prompts.
+- 节点：人物、手机号令牌、地址令牌、单位令牌；
+- 边：使用联系方式、出现于地址、任职于单位、版本化关系候选；
+- 不包含原始记录载荷或明文身份标识。
 
-## Delivery phases
+图投影必须能够从 PostgreSQL 完整重建。只有在 PostgreSQL 有界二跳、三跳查询基准证明存在真实需求后，才引入图数据库。
 
-### Phase 1: field quality foundation
+## 隐私与访问控制
 
-- Implement versioned address and organization normalizers.
-- Add normalized observations, value profiles, and resumable checkpoints.
-- Produce aggregate coverage/frequency reports without raw identities.
-- Keep current identity membership and `relation-v3` unchanged.
+- 原始身份标识和联系方式保持本地，不得进入 Git 或测试夹具。
+- API、CSV 和报告默认对身份及联系方式脱敏。
+- HMAC 和加密密钥通过集中运行时配置管理。
+- 运维日志只包含 ID、数量、阶段、耗时和错误代码，不包含记录载荷。
+- 所有自动化测试和本地代码模型提示词只使用合成数据。
 
-### Phase 2: identity candidates and conflicts
+## 交付阶段
 
-- Add certificate-type-aware identifier normalization.
-- Audit legacy composite identities.
-- Generate reversible merge candidates and hard conflicts.
-- Require reviewed decisions before entity membership changes.
+### 第一阶段：字段质量基础
 
-### Phase 3: pair features and relationship v4
+- 实现版本化地址和单位标准化器。
+- 新增标准观察记录、属性频率画像和可恢复检查点。
+- 生成不包含原始身份信息的聚合覆盖率与频率报告。
+- 保持当前人物身份归属和 `relation-v3` 不变。
 
-- Materialize bounded pair features from eligible values.
-- Add explainable frequency-aware scoring.
-- Compare `relation-v3` and the new version by confidence band and false-positive reason.
-- Activate the new version only after evaluation acceptance.
+### 第二阶段：身份候选与冲突
 
-### Phase 4: analytical and graph projections
+- 新增可识别证件类型的身份标准化。
+- 审计历史组合身份。
+- 生成可撤销的归并候选和硬冲突。
+- 人物成员关系变更前必须经过审核决策。
 
-- Export masked/versioned Parquet snapshots.
-- Add DuckDB aggregate reports.
-- Benchmark PostgreSQL path queries.
-- Add a graph projection only if the benchmarked use cases justify it.
+### 第三阶段：两人特征和 `relation-v4`
 
-## Verification and acceptance
+- 从合格属性物化有界人物对特征。
+- 新增可解释的频率感知评分。
+- 按置信区间和误报原因对比 `relation-v3` 与新版本。
+- 只有评估结果通过验收后才能启用新版本。
 
-Every phase must pass unit, migration-contract, idempotency, interruption/resume, privacy, and full repository verification tests.
+### 第四阶段：分析和图投影
 
-Phase 1 acceptance requires:
+- 导出脱敏、带版本的 Parquet 快照。
+- 新增 DuckDB 聚合报告。
+- 对 PostgreSQL 路径查询执行基准测试。
+- 只有基准用例证明有必要时，才增加图投影。
 
-- normalized coverage equals the selected raw-record coverage;
-- rerunning the same version produces no duplicate derived rows;
-- missing address remains null and neutral;
-- public/high-frequency values are classified without pair expansion;
-- checkpoints resume after an injected interruption;
-- reports contain aggregates only;
-- `npm run verify` passes.
+## 验证与验收
 
-Production-scale execution first runs in report-only mode. It must provide batch duration, rows per second, table growth, WAL growth, temporary I/O, and estimated completion time before relationship v4 processing is enabled.
+每个阶段都必须通过单元测试、迁移合同测试、幂等测试、中断恢复测试、隐私测试和完整仓库验证。
 
-## Rollback
+第一阶段验收条件：
 
-Rollback stops the secondary workers and deactivates the new algorithm version. Because raw data, existing people, and `relation-v3` are not mutated, derived rows for an unaccepted version can remain for diagnosis or be removed later through a separately approved version-scoped cleanup. No rollback command deletes Docker volumes or raw records.
+- 标准观察覆盖数量等于所选原始记录覆盖数量；
+- 同一版本重复执行不会产生重复派生记录；
+- 地址缺失保持 null 和中性；
+- 公共或高频属性完成分类但不展开人物对；
+- 注入中断后检查点能够继续；
+- 报告只包含聚合数据；
+- `npm run verify` 通过。
+
+生产规模首次执行必须使用只生成报告的模式。在允许执行 `relation-v4` 之前，报告必须包含批次耗时、每秒处理行数、表增长、WAL 增长、临时 I/O 和预计完成时间。
+
+## 回滚
+
+回滚操作只停止二次加工任务并停用新算法版本。由于原始数据、现有人物和 `relation-v3` 均不被修改，未通过验收版本的派生数据可以保留用于诊断，或者在之后通过另行批准、严格限定版本范围的清理任务删除。任何回滚命令都不得删除 Docker 数据卷或原始记录。
