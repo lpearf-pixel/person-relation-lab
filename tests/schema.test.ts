@@ -38,4 +38,24 @@ describe("PostgreSQL schema", () => {
     expect(sql).toContain("person_observation_address_person_idx");
     expect(sql).toContain("person_observation_company_person_idx");
   });
+
+  it("adds versioned secondary observations, value profiles and nullable-scope checkpoints", async () => {
+    const sql = await readFile(new URL("../migrations/005_secondary_processing_foundation.sql", import.meta.url), "utf8");
+    expect(sql).toContain("CREATE SCHEMA IF NOT EXISTS analytics");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS analytics.normalized_observation");
+    expect(sql).toContain("PRIMARY KEY (raw_record_id, normalizer_version)");
+    expect(sql).toContain("source_file_id UUID NOT NULL REFERENCES ingest.source_file(id)");
+    expect(sql).toContain("address_detail_level BETWEEN 0 AND 4");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS analytics.value_profile");
+    expect(sql).toContain("'mobile','email','address','organization'");
+    expect(sql).toContain("'private','shared_household','organization','public','noisy'");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS ingest.processing_checkpoint");
+    expect(sql).toContain("last_raw_record_id BIGINT NOT NULL DEFAULT 0 CHECK (last_raw_record_id >= 0)");
+    expect(sql).toContain("processed_rows BIGINT NOT NULL DEFAULT 0 CHECK (processed_rows >= 0)");
+    expect(sql).toContain("'pending','running','complete','failed'");
+    expect(sql).toContain("NULLS NOT DISTINCT");
+    expect(sql).toContain("left(mobile_hash, 2)");
+    expect(sql).toContain("left(address_hash, 2)");
+    expect(sql).not.toMatch(/DROP TABLE|TRUNCATE|DELETE FROM raw\.record/i);
+  });
 });
