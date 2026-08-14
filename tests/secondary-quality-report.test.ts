@@ -13,6 +13,7 @@ it("提供只读且失败时返回非零的二次加工质量门禁", async () =
   expect(script).toContain("expected_profile_buckets");
   expect(script).toContain("normalized_mismatches");
   expect(script).toContain("empty_hash_rows");
+  expect(script).toContain("if ! grep -q '^SECONDARY_QUALITY_PASS$'");
   expect(script).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|TRUNCATE|DROP)\s+/i);
 });
 

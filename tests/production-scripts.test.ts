@@ -103,3 +103,19 @@ it("provides a resumable secondary processing runner and privacy-safe monitor", 
   expect(watch).toContain("ONCE=${ONCE:-0}");
   expect(watch).toContain("/tmp/person-relation-secondary-watch-latest.log");
 });
+
+it("provides an isolated synthetic PostgreSQL smoke gate", async () => {
+  const script = await readFile("scripts/smoke-secondary-processing.sh", "utf8");
+
+  expect(script).toContain("set -Eeuo pipefail");
+  expect(script).toContain("COMPOSE_PROJECT_NAME");
+  expect(script).toContain("mktemp -d");
+  expect(script).toContain("SECONDARY_SMOKE_PASS");
+  expect(script).toContain("SECONDARY_QUALITY_PASS");
+  expect(script).toContain("docker compose down -v --remove-orphans");
+  expect(script).toContain("synthetic-smoke-only");
+  expect(script).toContain("secondary-normalization");
+  expect(script).not.toContain("person-relation-lab-db-1");
+  expect(script).not.toContain("/imports");
+  expect(script).not.toContain("docker compose exec app");
+});

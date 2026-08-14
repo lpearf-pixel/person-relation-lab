@@ -290,3 +290,7 @@ printf '%s\n' "$SQL" | docker compose exec -T \
 if grep -q '^SECONDARY_QUALITY_FAIL$' "$RESULT_FILE"; then
   exit 1
 fi
+if ! grep -q '^SECONDARY_QUALITY_PASS$' "$RESULT_FILE"; then
+  echo "SECONDARY_QUALITY_FAIL"
+  exit 1
+fi

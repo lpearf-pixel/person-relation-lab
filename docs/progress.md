@@ -64,5 +64,6 @@
 - [x] 手机、邮箱、地址和单位按哈希前缀分成 1024 个可恢复画像桶。
 - [x] 提供本地启动、持续监控和只读质量验收脚本，日志统一写入 `/tmp`。
 - [x] 第一阶段与 `relation-v3` 隔离，不修改现有人物唯一性和关系结果。
-- [ ] 在独立合成 PostgreSQL 环境完成端到端冒烟验收。
+- [x] 提供独立 Compose project、独立临时卷和合成数据的 PostgreSQL 端到端冒烟门禁。
+- [ ] 在具备 Docker 的开发环境执行冒烟脚本并取得 `SECONDARY_SMOKE_PASS`。
 - [ ] 在目标 Mac 的 20,051,414 条记录上运行二次加工并取得 `SECONDARY_QUALITY_PASS`。
