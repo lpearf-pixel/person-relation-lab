@@ -17,7 +17,7 @@ Turn the completed ten-million-row import foundation into a maintainable local r
 
 ### P0 — Baseline closure
 
-- Record the verified 10,000,520 / 10,000,520 source-to-projection baseline.
+- Record the verified 20,051,414 / 20,051,414 source-to-projection baseline across 11 completed sources.
 - Preserve pause, resume, recovery, monitoring, and direct-query scripts.
 - Add repeatable smoke checks for source completeness and stale checkpoints.
 
@@ -114,4 +114,3 @@ The command-line tool has two commands:
 Allowed context extensions are source and documentation formats such as `.ts`, `.js`, `.json`, `.md`, `.sql`, `.sh`, `.yml`, and `.yaml`. Denied names and paths include `.env`, `data`, imports, dumps, logs, spreadsheets, and delimited data. Each file and the total request have conservative size limits. The tool never writes application files, applies patches, runs generated shell, connects to PostgreSQL, or uploads content.
 
 Ollama URL and model are configurable with `OLLAMA_URL` and `LOCAL_CODER_MODEL`; defaults target `http://127.0.0.1:11434` and `qwen2.5-coder:7b-instruct`. Failure is isolated from the application runtime.
-

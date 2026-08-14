@@ -35,12 +35,12 @@
 - Produces: `validateContextPath(repoRoot: string, candidate: string): Promise<string>` and `buildMessages(task: string, contexts: ContextDocument[]): ChatMessage[]`.
 - Produces: `npm run local-coder -- check` and `npm run local-coder -- run <task-file> [context-file ...]`.
 
-- [ ] Write tests that reject `.env`, `data/people.csv`, paths outside the repository, unsupported extensions, and oversized files.
-- [ ] Run `npm test -- tests/local-coder.test.ts` and confirm failure because `src/tools/local-coder.ts` does not exist.
-- [ ] Implement path validation, request construction, Ollama API calls, timeouts, response validation, and `/tmp` output.
-- [ ] Add Bash 3.2 wrappers with fixed log files and no evaluation of generated output.
-- [ ] Run `bash -n scripts/local-coder-check.sh scripts/local-coder-task.sh` and `npm run verify`.
-- [ ] Commit with `feat: add safe local coder workflow`.
+- [x] Write tests that reject `.env`, `data/people.csv`, paths outside the repository, unsupported extensions, and oversized files.
+- [x] Run `npm test -- tests/local-coder.test.ts` and confirm failure because `src/tools/local-coder.ts` does not exist.
+- [x] Implement path validation, request construction, Ollama API calls, timeouts, response validation, and `/tmp` output.
+- [x] Add Bash 3.2 wrappers with fixed log files and no evaluation of generated output.
+- [x] Run `bash -n scripts/local-coder-check.sh scripts/local-coder-task.sh` and `npm run verify`.
+- [x] Commit with `feat: add safe local coder workflow`.
 
 ### Task 2: P0 baseline closure
 
@@ -52,12 +52,12 @@
 **Interfaces:**
 - Produces: `/tmp/person-relation-baseline-latest.log` with per-source raw/projected counts, incomplete checkpoints, active operations, and a nonzero exit code on mismatch.
 
-- [ ] Write a script contract test requiring read-only SQL and failure conditions for non-complete sources or count mismatches.
-- [ ] Run the focused test and confirm it fails because the script is missing.
-- [ ] Implement one read-only `psql` script with `ON_ERROR_STOP=1` and explicit validation.
-- [ ] Run shell syntax, focused tests, and `npm run verify`.
-- [ ] Execute it on the local database and record the verified baseline in `docs/progress.md` without personal data.
-- [ ] Commit with `ops: add projection baseline verification`.
+- [x] Write a script contract test requiring read-only SQL and failure conditions for non-complete sources or count mismatches.
+- [x] Run the focused test and confirm it fails because the script is missing.
+- [x] Implement one read-only `psql` script with `ON_ERROR_STOP=1` and explicit validation.
+- [x] Run shell syntax, focused tests, and `npm run verify`.
+- [x] Execute it on the local database and record the verified baseline in `docs/progress.md` without personal data.
+- [x] Commit with `ops: add projection baseline verification`.
 
 ### Task 3: P1 versioned field normalization and frequency profiles
 
@@ -267,4 +267,3 @@
 ## Release order and gates
 
 Complete tasks in order. Tasks 3–6 change analytical meaning and require side-by-side version comparison before activation. Tasks 7–9 consume those versioned outputs and must not silently select a new algorithm. Task 10 is enabled only after correctness equivalence against a full recomputation. Task 12 remains opt-in until its validation report is accepted.
-
