@@ -75,3 +75,31 @@ it("provides local coder wrappers that log output without executing it", async (
   expect(task).toContain("/tmp/person-relation-local-coder-task-latest.log");
   expect(task).toContain("/tmp/person-relation-local-coder-latest.md");
 });
+
+it("provides a resumable secondary processing runner and privacy-safe monitor", async () => {
+  const pkg = JSON.parse(await readFile("package.json", "utf8")) as { scripts: Record<string, string> };
+  expect(pkg.scripts["process:secondary"]).toBe("node dist/db/run-secondary-processing.js");
+
+  const [run, watch] = await Promise.all([
+    readFile("scripts/run-secondary-processing.sh", "utf8"),
+    readFile("scripts/watch-secondary-processing.sh", "utf8")
+  ]);
+  for (const script of [run, watch]) {
+    expect(script).toContain("set -Eeuo pipefail");
+    expect(script).toContain("docker compose");
+    expect(script).toContain("/tmp/person-relation-secondary-");
+    expect(script).not.toMatch(/down\s+-v|volume\s+rm|DROP TABLE|TRUNCATE|DELETE FROM raw\.record/i);
+    expect(script).not.toContain("r.values");
+  }
+  expect(run).toContain("docker compose stop app");
+  expect(run).toContain("npm run migrate");
+  expect(run).toContain("npm run process:secondary");
+  expect(run).toContain("docker compose up -d app");
+  expect(run).toContain("/tmp/person-relation-secondary-processing-latest.log");
+  expect(watch).toContain("ingest.processing_checkpoint");
+  expect(watch).toContain("analytics.normalized_observation");
+  expect(watch).toContain("pg_stat_activity");
+  expect(watch).toContain("pg_stat_wal");
+  expect(watch).toContain("ONCE=${ONCE:-0}");
+  expect(watch).toContain("/tmp/person-relation-secondary-watch-latest.log");
+});
