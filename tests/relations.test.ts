@@ -16,6 +16,20 @@ describe("evidence policy", () => {
     expect(result.type).toBe("organization_association");
   });
 
+  it("never infers a partner relationship from one private mobile only", () => {
+    const result = inferRelationship([
+      { kind: "shared_private_mobile", weight: 45, channel: "contact" }
+    ]);
+    expect(result.type).toBe("generic_association");
+  });
+
+  it("never infers a partner relationship from one address only", () => {
+    const result = inferRelationship([
+      { kind: "same_address", weight: 35, channel: "address" }
+    ]);
+    expect(result.type).toBe("generic_association");
+  });
+
   it("keeps a two-channel partner candidate unconfirmed", () => {
     const result = inferRelationship([
       { kind: "same_household", weight: 60, channel: "household" },

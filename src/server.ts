@@ -11,7 +11,11 @@ const roots = (process.env.IMPORT_ROOTS ?? "./imports").split(",").map((item) =>
 const pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL, max: 10 }) : null;
 const relationshipService = pool ? new PgRelationshipService(pool) : null;
 const scanIntervalMs = Number(process.env.SCAN_INTERVAL_MS ?? 30_000);
-const projectionBuilder = pool ? new PgProjectionBuilder(pool, Number(process.env.PROJECTION_BATCH_SIZE ?? 2_000)) : null;
+const projectionBuilder = pool ? new PgProjectionBuilder(
+  pool,
+  Number(process.env.PROJECTION_BATCH_SIZE ?? 2_000),
+  Number(process.env.RELATION_BATCH_SIZE ?? 2_000)
+) : null;
 const worker = pool ? new AutoImportWorker(
   roots,
   new PgSourceRegistry(pool),

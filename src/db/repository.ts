@@ -5,6 +5,8 @@ import type { SourceRegistry, SourceRegistration } from "../ingest/worker.js";
 
 export type QueryResult = { rows: Array<Record<string, unknown>> };
 export type Queryable = { query(text: string, values?: unknown[]): Promise<QueryResult> };
+export type DatabaseClient = Queryable & { release(): void };
+export type ConnectableDatabase = Queryable & { connect(): Promise<DatabaseClient> };
 
 export class PgImportSink implements ImportSink {
   constructor(private readonly database: Queryable) {}
@@ -76,12 +78,24 @@ export class PgSourceRegistry implements SourceRegistry {
 }
 
 export const FIND_PATHS_SQL = `
-WITH RECURSIVE edges AS (
+WITH RECURSIVE ranked_relationships AS (
+  SELECT id, person_a_id, person_b_id, relation_type, confidence, algorithm_version,
+    ROW_NUMBER() OVER (
+      PARTITION BY LEAST(person_a_id, person_b_id), GREATEST(person_a_id, person_b_id), relation_type
+      ORDER BY CASE algorithm_version WHEN 'relation-v3' THEN 0 WHEN 'relation-v2' THEN 1 ELSE 2 END,
+        updated_at DESC, id
+    ) AS edge_rank
+  FROM projection.relationship
+  WHERE status IN ('observed','inferred','confirmed')
+), active_relationships AS (
   SELECT id, person_a_id, person_b_id, relation_type, confidence
-  FROM projection.relationship WHERE status IN ('observed','inferred','confirmed')
+  FROM ranked_relationships WHERE edge_rank = 1
+), edges AS (
+  SELECT id, person_a_id, person_b_id, relation_type, confidence
+  FROM active_relationships
   UNION ALL
   SELECT id, person_b_id, person_a_id, relation_type, confidence
-  FROM projection.relationship WHERE status IN ('observed','inferred','confirmed')
+  FROM active_relationships
 ), path AS (
   SELECT person_b_id AS current_person, ARRAY[person_a_id, person_b_id] AS visited,
          ARRAY[id] AS edge_ids, 1 AS depth, confidence::numeric AS strength

@@ -1,0 +1,34 @@
+import { readFile, stat } from "node:fs/promises";
+import { expect, it } from "vitest";
+
+it("provides one read-only baseline verification script with a fixed log", async () => {
+  const script = await readFile("scripts/verify-baseline.sh", "utf8");
+  const scriptStat = await stat("scripts/verify-baseline.sh");
+  expect(scriptStat.mode & 0o111).not.toBe(0);
+  expect(script).toContain("set -Eeuo pipefail");
+  expect(script).toContain("/tmp/person-relation-baseline-latest.log");
+  expect(script).toContain("docker compose exec -T");
+  expect(script).toContain("default_transaction_read_only=on");
+  expect(script).toContain("statement_timeout=120000");
+  expect(script).toContain("ingest.source_file");
+  expect(script).toContain("raw.record");
+  expect(script).toContain("core.person_observation");
+  expect(script).toContain("ingest.projection_checkpoint");
+  expect(script).toContain("pg_stat_activity");
+  expect(script).toContain("expected_stage_count");
+  expect(script).toContain("baseline_failed");
+  expect(script).toContain("source_status AS MATERIALIZED");
+  expect(script).toContain("jsonb_pretty");
+  expect(script).not.toMatch(/\bCREATE\s+(?:TEMP\s+)?TABLE\b/i);
+  expect(script).not.toContain("ROLLBACK");
+  expect(script.match(/FROM raw\.record/g)).toHaveLength(1);
+  expect(script).not.toMatch(/\\quit\s+1/);
+  expect(script).toContain("BASELINE_RESULT_FILE");
+  expect(script).toContain("grep -q '^BASELINE_FAIL$'");
+  expect(script).toContain("exit 1");
+  expect(script).toContain("BASELINE_PASS");
+  expect(script).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|TRUNCATE|ALTER)\s+/i);
+  expect(script).not.toMatch(/\bDROP\s+(?:TABLE|SCHEMA|DATABASE|INDEX)\b/i);
+  expect(script).not.toMatch(/\bCREATE\s+(?!TEMP\s+TABLE\b)TABLE\b/i);
+  expect(script).not.toMatch(/down\s+-v|volume\s+rm/i);
+});

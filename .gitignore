@@ -7,3 +7,4 @@ data/
 *.log
 coverage/
 .DS_Store
+.worktrees/
