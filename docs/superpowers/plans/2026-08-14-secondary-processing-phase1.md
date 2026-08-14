@@ -56,7 +56,7 @@
 - 产出：`normalizeAddress(value: string | null | undefined): NormalizedAddress`。
 - 产出：`normalizeCompany(value: string | null | undefined): NormalizedCompany`。
 
-- [ ] **步骤 1：编写地址标准化失败测试**
+- [x] **步骤 1：编写地址标准化失败测试**
 
 ```ts
 expect(normalizeAddress(null)).toEqual({
@@ -73,13 +73,13 @@ expect(normalizeAddress(" 上海市 浦东新区 上南路 5290 号 ")).toMatchO
 });
 ```
 
-- [ ] **步骤 2：运行测试并确认因模块不存在而失败**
+- [x] **步骤 2：运行测试并确认因模块不存在而失败**
 
 运行：`npm test -- tests/address-normalizer.test.ts`
 
 预期：失败，并提示无法解析 `address-normalizer.js`。
 
-- [ ] **步骤 3：实现公共类型和保守地址标准化**
+- [x] **步骤 3：实现公共类型和保守地址标准化**
 
 `NormalizedAddress` 必须包含 `value`、`region`、`detailLevel`、`version`、`flags`。只执行 Unicode NFKC、空白和常见标点规范化；行政区提取失败时保留完整标准值并增加 `address_region_unparsed`，不得猜测缺失行政区。
 
@@ -100,7 +100,7 @@ export function normalizeAddress(input: string | null | undefined): NormalizedAd
 }
 ```
 
-- [ ] **步骤 4：编写单位标准化失败测试**
+- [x] **步骤 4：编写单位标准化失败测试**
 
 ```ts
 expect(normalizeCompany("上海江达机械加工部 总经办")).toEqual({
@@ -116,7 +116,7 @@ expect(normalizeCompany(" ")).toMatchObject({
 });
 ```
 
-- [ ] **步骤 5：实现单位主体与部门保守拆分**
+- [x] **步骤 5：实现单位主体与部门保守拆分**
 
 首版只识别末尾明确部门词：`总经办`、`采购部`、`财务部`、`经理室`、`人事部`、`销售部`。无法可靠拆分时，完整值作为 `organization`，`department` 为 null，并增加 `department_unparsed`；不得删除 `有限公司`、`集团` 等主体组成部分。
 
@@ -127,7 +127,7 @@ const department = match?.[1] ?? null;
 const organization = department ? normalized.slice(0, -department.length) || null : normalized;
 ```
 
-- [ ] **步骤 6：运行聚焦测试和静态检查**
+- [x] **步骤 6：运行聚焦测试和静态检查**
 
 运行：
 
@@ -138,7 +138,7 @@ npm run lint
 
 预期：两个测试文件和 ESLint 全部通过。
 
-- [ ] **步骤 7：提交标准化器**
+- [x] **步骤 7：提交标准化器**
 
 ```bash
 git add src/domain/normalized-value.ts src/domain/address-normalizer.ts src/domain/company-normalizer.ts tests/address-normalizer.test.ts tests/company-normalizer.test.ts
@@ -161,7 +161,7 @@ git commit -m "feat: add versioned field normalizers"
 - 输入：`normalizeSecondaryRecord(rawRecordId: string, personId: string, sourceFileId: string, values: Record<string, unknown>)`。
 - 产出：`SecondaryNormalizedRecord`，只包含哈希、粒度、版本和质量标记，不包含身份证、手机号、地址、邮箱或单位明文。
 
-- [ ] **步骤 1：编写隐私和缺失值失败测试**
+- [x] **步骤 1：编写隐私和缺失值失败测试**
 
 ```ts
 const result = normalizeSecondaryRecord("1", "person-1", "source-1", {
@@ -183,13 +183,13 @@ expect(JSON.stringify(result)).not.toContain("13800138000");
 expect(JSON.stringify(result)).not.toContain("Test@Example.COM");
 ```
 
-- [ ] **步骤 2：运行测试并确认失败**
+- [x] **步骤 2：运行测试并确认失败**
 
 运行：`npm test -- tests/secondary-record-normalizer.test.ts`
 
 预期：失败，并提示模块不存在。
 
-- [ ] **步骤 3：实现记录构建器**
+- [x] **步骤 3：实现记录构建器**
 
 手机号复用 `normalizeMobile`；邮箱执行 trim 和小写后验证基础格式；地址和单位复用任务 1 接口。所有非空标准值通过 `digestNormalized` 转换为 SHA-256 哈希；质量标记去重后排序，保证重跑结果稳定。
 
@@ -213,17 +213,17 @@ export type SecondaryNormalizedRecord = {
 const hashOrNull = (value: string | null): string | null => value ? digestNormalized(value) : null;
 ```
 
-- [ ] **步骤 4：增加确定性和空字符串测试**
+- [x] **步骤 4：增加确定性和空字符串测试**
 
 同一输入运行两次必须完全相等；空白手机号、邮箱、地址和单位必须生成 null，不能生成 SHA-256 空值。
 
-- [ ] **步骤 5：运行聚焦测试**
+- [x] **步骤 5：运行聚焦测试**
 
 运行：`npm test -- tests/secondary-record-normalizer.test.ts`
 
 预期：全部通过。
 
-- [ ] **步骤 6：提交记录构建器**
+- [x] **步骤 6：提交记录构建器**
 
 ```bash
 git add src/domain/secondary-record-normalizer.ts tests/secondary-record-normalizer.test.ts
@@ -245,7 +245,7 @@ git commit -m "feat: build privacy-safe normalized observations"
 - 产出：`analytics.value_profile`。
 - 产出：`ingest.processing_checkpoint`。
 
-- [ ] **步骤 1：编写迁移合同失败测试**
+- [x] **步骤 1：编写迁移合同失败测试**
 
 ```ts
 const sql = await readFile(new URL("../migrations/005_secondary_processing_foundation.sql", import.meta.url), "utf8");
@@ -257,13 +257,13 @@ expect(sql).toContain("CREATE TABLE IF NOT EXISTS ingest.processing_checkpoint")
 expect(sql).toContain("NULLS NOT DISTINCT");
 ```
 
-- [ ] **步骤 2：运行 schema 测试并确认失败**
+- [x] **步骤 2：运行 schema 测试并确认失败**
 
 运行：`npm test -- tests/schema.test.ts`
 
 预期：因迁移文件不存在而失败。
 
-- [ ] **步骤 3：实现迁移**
+- [x] **步骤 3：实现迁移**
 
 `normalized_observation` 增加 `source_file_id` 以支持来源覆盖验证；对 `normalizer_version` 与各属性哈希建立复合索引，并为 `left(hash, 2)` 分桶建立表达式索引。`processing_checkpoint` 使用 bigint 主键和包含 `source_file_id` 的 `UNIQUE NULLS NOT DISTINCT` 约束，使全局画像阶段可以使用 null 来源且保持幂等。
 
@@ -316,17 +316,17 @@ CREATE UNIQUE INDEX processing_checkpoint_scope_uq
 COMMIT;
 ```
 
-- [ ] **步骤 4：加入约束测试**
+- [x] **步骤 4：加入约束测试**
 
 测试必须要求状态只允许 `pending/running/complete/failed`，`last_raw_record_id` 和 `processed_rows` 非负，`address_detail_level` 在 0 到 4 之间，并要求 `value_profile` 只允许既定渠道与分类。
 
-- [ ] **步骤 5：运行迁移合同测试**
+- [x] **步骤 5：运行迁移合同测试**
 
 运行：`npm test -- tests/schema.test.ts`
 
 预期：全部通过。
 
-- [ ] **步骤 6：提交数据库基础**
+- [x] **步骤 6：提交数据库基础**
 
 ```bash
 git add migrations/005_secondary_processing_foundation.sql tests/schema.test.ts
@@ -349,7 +349,7 @@ git commit -m "feat: add secondary processing schema"
 - 产出：`processSource(sourceFileId: string): Promise<{ processedRecords: number }>`。
 - 构造：`new PgSecondaryProcessingBuilder(database: ConnectableDatabase, pageSize = 2000)`。
 
-- [ ] **步骤 1：编写分页、锁和事务失败测试**
+- [x] **步骤 1：编写分页、锁和事务失败测试**
 
 使用现有假数据库模式记录 SQL 和参数。测试要求：
 
@@ -362,13 +362,13 @@ expect(sql).toContain("ON CONFLICT (raw_record_id, normalizer_version)");
 expect(sql).toContain("COMMIT");
 ```
 
-- [ ] **步骤 2：运行聚焦测试并确认失败**
+- [x] **步骤 2：运行聚焦测试并确认失败**
 
 运行：`npm test -- tests/secondary-processing-builder.test.ts`
 
 预期：因工作器不存在而失败。
 
-- [ ] **步骤 3：实现来源级锁和断点读取**
+- [x] **步骤 3：实现来源级锁和断点读取**
 
 锁键使用 `secondary-normalization:normalizer-v1:<sourceFileId>`。只读取已有 `core.person_observation` 的 raw 记录；游标来自 `ingest.processing_checkpoint`。发现另一个进程持锁时必须立即返回明确错误，不能并发执行同一来源。
 
@@ -396,7 +396,7 @@ ORDER BY r.id
 LIMIT $3;
 ```
 
-- [ ] **步骤 4：实现批次原子写入**
+- [x] **步骤 4：实现批次原子写入**
 
 每页先在内存中调用 `normalizeSecondaryRecord`，再用 `jsonb_to_recordset` 批量 upsert。`BEGIN` 后写入观察记录并推进检查点，成功后 `COMMIT`；任何错误执行 `ROLLBACK`，检查点不得前进。
 
@@ -411,7 +411,7 @@ try {
 }
 ```
 
-- [ ] **步骤 5：实现覆盖验证**
+- [x] **步骤 5：实现覆盖验证**
 
 来源完成前比较：
 
@@ -423,11 +423,11 @@ analytics.normalized_observation(normalizer-v1) 数量
 
 三者必须相等，检查点才能标记 `complete`。无效计数或数量不一致必须失败且写入安全错误代码，不记录数据载荷。
 
-- [ ] **步骤 6：增加中断恢复和幂等测试**
+- [x] **步骤 6：增加中断恢复和幂等测试**
 
 模拟第二批失败，断言第一批检查点已提交；重新运行从上一游标继续。重复处理同一页后，派生表行数不增加。
 
-- [ ] **步骤 7：运行聚焦测试和构建**
+- [x] **步骤 7：运行聚焦测试和构建**
 
 ```bash
 npm test -- tests/secondary-processing-builder.test.ts
@@ -436,7 +436,7 @@ npm run build
 
 预期：测试和 TypeScript 构建通过。
 
-- [ ] **步骤 8：提交工作器**
+- [x] **步骤 8：提交工作器**
 
 ```bash
 git add src/db/secondary-processing-sql.ts src/db/secondary-processing-builder.ts tests/secondary-processing-builder.test.ts
@@ -459,17 +459,17 @@ git commit -m "feat: add resumable normalized observation worker"
 - 产出：`class PgValueProfiler`。
 - 产出：`rebuild(normalizerVersion = "normalizer-v1"): Promise<{ profiledValues: number }>`。
 
-- [ ] **步骤 1：编写分桶和前置覆盖失败测试**
+- [x] **步骤 1：编写分桶和前置覆盖失败测试**
 
 测试要求画像开始前确认全部 complete 来源均有 `normalizer-v1` 完整检查点；每个渠道按 `00` 到 `ff` 的哈希前缀处理，并使用 `profile:<channel>:<prefix>` 全局检查点。
 
-- [ ] **步骤 2：运行聚焦测试并确认失败**
+- [x] **步骤 2：运行聚焦测试并确认失败**
 
 运行：`npm test -- tests/value-profiler.test.ts`
 
 预期：因 `PgValueProfiler` 不存在而失败。
 
-- [ ] **步骤 3：实现渠道白名单和 SQL 构造**
+- [x] **步骤 3：实现渠道白名单和 SQL 构造**
 
 列名必须由代码内固定映射产生，绝不能由外部字符串直接拼接。每个桶聚合 `COUNT(*)`、`COUNT(DISTINCT person_id)` 和 `COUNT(DISTINCT source_file_id)`，写入 `analytics.value_profile` 后在同一事务推进检查点。
 
@@ -493,7 +493,7 @@ export function profileBucketSql(channel: ProfileChannel): string {
 }
 ```
 
-- [ ] **步骤 4：实现第一阶段报告型分类**
+- [x] **步骤 4：实现第一阶段报告型分类**
 
 第一阶段不把统计分布固化为关系阈值：
 
@@ -505,17 +505,17 @@ export function profileBucketSql(channel: ProfileChannel): string {
 
 这些分类仅用于质量报告，第三阶段必须根据实测分布另行确定配对阈值。
 
-- [ ] **步骤 5：增加重跑与失败恢复测试**
+- [x] **步骤 5：增加重跑与失败恢复测试**
 
 相同桶重跑必须覆盖同版本统计而不是累加。模拟桶失败时，只保留之前已提交桶；恢复后从第一个未完成桶继续。
 
-- [ ] **步骤 6：运行聚焦测试**
+- [x] **步骤 6：运行聚焦测试**
 
 运行：`npm test -- tests/value-profiler.test.ts`
 
 预期：全部通过。
 
-- [ ] **步骤 7：提交画像工作器**
+- [x] **步骤 7：提交画像工作器**
 
 ```bash
 git add src/db/secondary-processing-sql.ts src/db/value-profiler.ts tests/value-profiler.test.ts
@@ -540,17 +540,17 @@ git commit -m "feat: add resumable value frequency profiles"
 - 产出：`/tmp/person-relation-secondary-processing-latest.log`。
 - 产出：`/tmp/person-relation-secondary-watch-latest.log`。
 
-- [ ] **步骤 1：编写脚本合同失败测试**
+- [x] **步骤 1：编写脚本合同失败测试**
 
 测试要求两个脚本包含 `set -Eeuo pipefail`、固定 `/tmp` 日志和 `docker compose`，且不得包含 `down -v`、`DROP TABLE`、`TRUNCATE`、`DELETE FROM raw.record` 或真实记录输出。
 
-- [ ] **步骤 2：运行生产脚本测试并确认失败**
+- [x] **步骤 2：运行生产脚本测试并确认失败**
 
 运行：`npm test -- tests/production-scripts.test.ts`
 
 预期：因脚本和 npm 命令不存在而失败。
 
-- [ ] **步骤 3：实现串行命令入口**
+- [x] **步骤 3：实现串行命令入口**
 
 入口只选择 `ingest.source_file.state = 'complete'` 的来源，按 `discovered_at` 串行调用 `PgSecondaryProcessingBuilder`；所有来源覆盖验证成功后调用 `PgValueProfiler`。日志事件只输出来源 ID、阶段、计数、耗时和错误代码。
 
@@ -565,7 +565,7 @@ for (const source of sources.rows) {
 await profiler.rebuild(NORMALIZER_VERSION);
 ```
 
-- [ ] **步骤 4：实现启动脚本**
+- [x] **步骤 4：实现启动脚本**
 
 脚本顺序固定为：检查 db 健康、停止常驻 app、防止并发、构建镜像、运行迁移、执行 `process:secondary`、验证成功后恢复 app。失败时保留 db 和检查点，不自动恢复 app，以免掩盖失败状态。
 
@@ -578,11 +578,11 @@ docker compose run --rm app npm run process:secondary
 docker compose up -d app
 ```
 
-- [ ] **步骤 5：实现监控脚本**
+- [x] **步骤 5：实现监控脚本**
 
 每 30 秒输出来源级标准化覆盖、当前流水线检查点、活跃数据库操作、表大小、WAL 和临时 I/O 增量；不查询或打印 raw JSON。支持 `ONCE=1` 单次输出，便于用户把一个日志文件传回排查。
 
-- [ ] **步骤 6：校验 shell 和聚焦测试**
+- [x] **步骤 6：校验 shell 和聚焦测试**
 
 ```bash
 bash -n scripts/run-secondary-processing.sh scripts/watch-secondary-processing.sh
@@ -591,7 +591,7 @@ npm test -- tests/production-scripts.test.ts
 
 预期：语法和测试全部通过。
 
-- [ ] **步骤 7：提交运行入口**
+- [x] **步骤 7：提交运行入口**
 
 ```bash
 git add src/db/run-secondary-processing.ts package.json scripts/run-secondary-processing.sh scripts/watch-secondary-processing.sh tests/production-scripts.test.ts
@@ -615,7 +615,7 @@ git commit -m "ops: add secondary processing runner and monitor"
 - 成功标记：`SECONDARY_QUALITY_PASS`。
 - 失败标记：`SECONDARY_QUALITY_FAIL`，并返回非零退出状态。
 
-- [ ] **步骤 1：编写只读报告合同失败测试**
+- [x] **步骤 1：编写只读报告合同失败测试**
 
 ```ts
 expect(script).toContain("SET TRANSACTION READ ONLY");
@@ -625,13 +625,13 @@ expect(script).toContain("/tmp/person-relation-secondary-quality-latest.log");
 expect(script).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|TRUNCATE|DROP)\s+/i);
 ```
 
-- [ ] **步骤 2：运行报告测试并确认失败**
+- [x] **步骤 2：运行报告测试并确认失败**
 
 运行：`npm test -- tests/secondary-quality-report.test.ts`
 
 预期：因脚本不存在而失败。
 
-- [ ] **步骤 3：实现聚合报告**
+- [x] **步骤 3：实现聚合报告**
 
 报告必须输出：
 
@@ -662,15 +662,15 @@ GROUP BY f.id, f.relative_path;
 COMMIT;
 ```
 
-- [ ] **步骤 4：实现失败条件**
+- [x] **步骤 4：实现失败条件**
 
 存在以下任一情况即返回非零：来源未完成、标准观察与 person observation 数量不一致、检查点未完成、出现空字符串哈希、画像桶不完整或出现数据库错误。
 
-- [ ] **步骤 5：编写中文运维说明**
+- [x] **步骤 5：编写中文运维说明**
 
 说明启动、查看单次状态、持续监控、安全停止、恢复、生成验收报告和日志路径。明确生产规模首次运行只生成 `normalizer-v1` 和画像，不生成 `relation-v4`。
 
-- [ ] **步骤 6：运行聚焦测试和完整门禁**
+- [x] **步骤 6：运行聚焦测试和完整门禁**
 
 ```bash
 bash -n scripts/secondary-quality-report.sh
@@ -680,7 +680,7 @@ npm run verify
 
 预期：所有测试、ESLint 和 TypeScript 构建通过。
 
-- [ ] **步骤 7：提交报告和文档**
+- [x] **步骤 7：提交报告和文档**
 
 ```bash
 git add scripts/secondary-quality-report.sh tests/secondary-quality-report.test.ts docs/secondary-processing-operations.md docs/progress.md
@@ -701,15 +701,15 @@ git commit -m "ops: add secondary quality acceptance report"
 
 - 产出：只使用临时合成数据库的 `SECONDARY_SMOKE_PASS` 冒烟门禁。
 
-- [ ] **步骤 1：编写冒烟脚本合同失败测试**
+- [x] **步骤 1：编写冒烟脚本合同失败测试**
 
 测试要求脚本创建独立 Compose project name 和临时 volume，只插入合成数据，并在 trap 中清理自身创建的资源；不得连接默认生产数据库或读取 `/imports`。
 
-- [ ] **步骤 2：实现合成数据冒烟**
+- [x] **步骤 2：实现合成数据冒烟**
 
 夹具覆盖：有效身份证重复记录、无效身份证、缺失地址、共享私人手机号、公共单位和可恢复的中断点。执行迁移、标准观察、频率画像和质量报告，断言 `SECONDARY_QUALITY_PASS`。
 
-- [ ] **步骤 3：运行 shell 和完整验证**
+- [x] **步骤 3：运行 shell 和完整验证**
 
 ```bash
 bash -n scripts/smoke-secondary-processing.sh
@@ -724,7 +724,7 @@ npm run verify
 
 预期：仓库门禁通过；有 Docker 时输出 `SECONDARY_SMOKE_PASS`。
 
-- [ ] **步骤 4：核对数据安全和版本隔离**
+- [x] **步骤 4：核对数据安全和版本隔离**
 
 运行：
 
@@ -735,7 +735,7 @@ rg -n "relation-v3" migrations/005_secondary_processing_foundation.sql src/db/se
 
 预期：测试只包含合成值；二次加工代码没有更新或删除 `relation-v3` 的 SQL。
 
-- [ ] **步骤 5：记录阶段交付状态并提交**
+- [x] **步骤 5：记录阶段交付状态并提交**
 
 ```bash
 git add scripts/smoke-secondary-processing.sh tests/production-scripts.test.ts docs/progress.md
