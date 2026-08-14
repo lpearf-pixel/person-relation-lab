@@ -115,6 +115,10 @@ it("provides an isolated synthetic PostgreSQL smoke gate", async () => {
   expect(script).toContain("docker compose down -v --remove-orphans");
   expect(script).toContain("synthetic-smoke-only");
   expect(script).toContain("secondary-normalization");
+  expect(script).toContain("SMOKE_APP_IMAGE=${SMOKE_APP_IMAGE:-}");
+  expect(script).toContain('if [ -n "$SMOKE_APP_IMAGE" ]');
+  expect(script).toContain('docker image inspect "$SMOKE_APP_IMAGE"');
+  expect(script).toContain('docker image tag "$SMOKE_APP_IMAGE" "$SMOKE_TARGET_IMAGE"');
   expect(script).not.toContain("person-relation-lab-db-1");
   expect(script).not.toContain("/imports");
   expect(script).not.toContain("docker compose exec app");

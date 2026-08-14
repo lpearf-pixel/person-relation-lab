@@ -7,6 +7,9 @@ EMPTY_IMPORT_DIR=$(mktemp -d "/tmp/person-relation-secondary-smoke-empty-XXXXXX"
 COMPOSE_PROJECT_NAME="person-relation-secondary-smoke-$$"
 POSTGRES_PASSWORD=synthetic-smoke-only
 IMPORT_DIR=$EMPTY_IMPORT_DIR
+SMOKE_APP_IMAGE=${SMOKE_APP_IMAGE:-}
+SMOKE_TARGET_IMAGE="${COMPOSE_PROJECT_NAME}-app"
+SMOKE_APP_IMAGE_TAGGED=0
 
 export COMPOSE_PROJECT_NAME POSTGRES_PASSWORD IMPORT_DIR
 
@@ -17,6 +20,9 @@ cleanup() {
   status=$?
   trap - EXIT
   docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+  if [ "$SMOKE_APP_IMAGE_TAGGED" = "1" ]; then
+    docker image rm "$SMOKE_TARGET_IMAGE" >/dev/null 2>&1 || true
+  fi
   rm -rf "$EMPTY_IMPORT_DIR"
   rm -f "$QUALITY_RESULT_FILE"
   echo "finished_at=$(date '+%Y-%m-%d %H:%M:%S %z')"
@@ -32,7 +38,15 @@ echo "compose_project=$COMPOSE_PROJECT_NAME"
 echo "data_classification=synthetic_only"
 
 docker compose version >/dev/null
-docker compose build app
+if [ -n "$SMOKE_APP_IMAGE" ]; then
+  docker image inspect "$SMOKE_APP_IMAGE" >/dev/null
+  docker image tag "$SMOKE_APP_IMAGE" "$SMOKE_TARGET_IMAGE"
+  SMOKE_APP_IMAGE_TAGGED=1
+  echo "app_image_source=reused:$SMOKE_APP_IMAGE"
+else
+  echo "app_image_source=compose_build"
+  docker compose build app
+fi
 docker compose up -d db
 
 attempt=0

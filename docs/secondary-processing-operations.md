@@ -95,6 +95,23 @@ LIMIT 40;
 
 数据库错误同样返回非零状态。日志不得提交到 Git，因为即使只有聚合信息，也属于本地生产运行记录。
 
+## 独立合成数据冒烟
+
+默认方式会为独立 Compose project 构建应用镜像：
+
+```bash
+./scripts/smoke-secondary-processing.sh
+```
+
+如果 Docker Hub 元数据访问受代理影响，可先使用本机统一构建工具生成当前项目镜像，再让冒烟脚本复用它。例如本机 `dcb` 已配置时：
+
+```bash
+dcb
+SMOKE_APP_IMAGE=person-relation-lab-app ./scripts/smoke-secondary-processing.sh
+```
+
+复用模式会先验证本地镜像存在，只给它增加一个当前冒烟 project 的临时标签；退出时删除临时标签、临时数据库卷和空导入目录，不删除原始 `person-relation-lab-app` 镜像，也不接触生产数据库卷。代码更新后必须先重新运行 `dcb`，避免使用旧镜像。
+
 ## 第一阶段边界
 
 本阶段只建立版本化的标准观察和属性频率画像，用于评估地址、联系方式和单位字段的覆盖率与区分度。它不会直接判断配偶、恋爱或情人关系，也不会把单一共享地址、单位或联系方式提升为伴侣关系。后续 `relation-v4` 必须在质量报告验收、阈值标注和离线评估完成后另行开发。
